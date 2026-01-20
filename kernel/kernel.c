@@ -12,6 +12,10 @@
 #include "pic.h"
 #include "timer.h"
 #include "keyboard.h"
+#include "task.h"
+#include "syscall.h"
+#include "ata.h"
+#include "fs.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -50,6 +54,16 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     timer_init(TIMER_FREQUENCY);
     keyboard_init();
     
+    // Инициализация многозадачности
+    vga_puts("Initializing multitasking...\n");
+    task_init();
+    syscall_init();
+    
+    // Инициализация файловой системы
+    vga_puts("Initializing file system...\n");
+    ata_init();
+    fs_init();
+    
     // Включаем прерывания
     asm volatile("sti");
     vga_puts("Interrupts enabled.\n");
@@ -57,6 +71,7 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_putdec(TIMER_FREQUENCY);
     vga_puts(" Hz\n");
     vga_puts("Keyboard driver ready.\n");
+    vga_puts("Multitasking ready.\n");
     
     // Приветственное сообщение
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);

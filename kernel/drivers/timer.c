@@ -9,6 +9,9 @@ static uint32_t timer_ticks = 0;
 static uint32_t timer_frequency = TIMER_FREQUENCY;
 static timer_callback_t timer_callback = NULL;
 
+// External task scheduler
+extern void task_switch(void);
+
 // Timer interrupt handler (IRQ 0)
 void timer_handler(void) {
     timer_ticks++;
@@ -17,6 +20,10 @@ void timer_handler(void) {
     if (timer_callback != NULL) {
         timer_callback();
     }
+    
+    // Trigger task switch every tick (for preemptive multitasking)
+    // In a real OS, we'd check time slices here
+    task_switch();
 }
 
 void timer_init(uint32_t frequency) {
