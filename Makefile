@@ -17,17 +17,20 @@ LDFLAGS = -m elf_i386 -T kernel.ld
 BOOT_DIR = boot
 KERNEL_DIR = kernel
 LIB_DIR = $(KERNEL_DIR)/lib
+MEMORY_DIR = $(KERNEL_DIR)/memory
 INCLUDE_DIR = include
 
 # Исходные файлы
 BOOT_SRC = $(BOOT_DIR)/multiboot.asm
 KERNEL_SRC = $(KERNEL_DIR)/kernel.c
 LIB_SRCS = $(LIB_DIR)/vga.c $(LIB_DIR)/string.c
+MEMORY_SRCS = $(MEMORY_DIR)/pmm.c $(MEMORY_DIR)/paging.c $(MEMORY_DIR)/heap.c
 
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
 KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
 LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o
+MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
 
 # Итоговый образ
 KERNEL_BIN = kernel.bin
@@ -52,8 +55,18 @@ $(LIB_DIR)/vga.o: $(LIB_DIR)/vga.c
 $(LIB_DIR)/string.o: $(LIB_DIR)/string.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Сборка memory management
+$(MEMORY_DIR)/pmm.o: $(MEMORY_DIR)/pmm.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(MEMORY_DIR)/paging.o: $(MEMORY_DIR)/paging.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(MEMORY_DIR)/heap.o: $(MEMORY_DIR)/heap.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Линковка kernel
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS)
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 # Создание ISO образа (для загрузки через GRUB)
@@ -73,5 +86,5 @@ qemu: $(KERNEL_BIN)
 
 # Очистка
 clean:
-	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
+	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
 	rm -rf isodir

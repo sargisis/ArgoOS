@@ -5,6 +5,9 @@
 #include "multiboot.h"
 #include "vga.h"
 #include "string.h"
+#include "pmm.h"
+#include "paging.h"
+#include "heap.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -27,6 +30,12 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_init();
     vga_clear();
     
+    // Инициализация управления памятью
+    vga_puts("Initializing memory management...\n");
+    pmm_init(mb_info);
+    paging_init();
+    heap_init();
+    
     // Приветственное сообщение
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
     vga_puts("========================================\n");
@@ -42,11 +51,39 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     
     // Вывод информации о памяти
     if (mb_info->flags & 0x01) {
-        vga_puts("Memory: ");
+        vga_puts("Physical Memory: ");
         vga_putdec(mb_info->mem_lower);
         vga_puts(" KB (lower), ");
         vga_putdec(mb_info->mem_upper);
         vga_puts(" KB (upper)\n");
+    }
+    
+    // Вывод информации о PMM
+    vga_puts("PMM: Total pages: ");
+    vga_putdec(pmm_get_total_pages());
+    vga_puts(", Free pages: ");
+    vga_putdec(pmm_get_free_pages());
+    vga_puts("\n");
+    
+    // Тест heap allocator
+    vga_puts("Testing heap allocator...\n");
+    void* ptr1 = kmalloc(256);
+    void* ptr2 = kmalloc(512);
+    void* ptr3 = kmalloc(1024);
+    
+    if (ptr1 && ptr2 && ptr3) {
+        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+        vga_puts("Heap allocator: OK\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        
+        kfree(ptr2);
+        kfree(ptr1);
+        kfree(ptr3);
+        vga_puts("Heap deallocation: OK\n");
+    } else {
+        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
+        vga_puts("Heap allocator: FAILED\n");
+        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     }
     
     vga_puts("\n");
