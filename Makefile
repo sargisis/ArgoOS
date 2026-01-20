@@ -22,6 +22,7 @@ INTERRUPTS_DIR = $(KERNEL_DIR)/interrupts
 DRIVERS_DIR = $(KERNEL_DIR)/drivers
 TASK_DIR = $(KERNEL_DIR)/task
 FS_DIR = $(KERNEL_DIR)/fs
+SHELL_DIR = $(KERNEL_DIR)/shell
 INCLUDE_DIR = include
 
 # Исходные файлы
@@ -35,6 +36,7 @@ DRIVERS_SRCS = $(DRIVERS_DIR)/timer.c $(DRIVERS_DIR)/keyboard.c $(DRIVERS_DIR)/a
 TASK_ASM = $(TASK_DIR)/context_switch.asm $(TASK_DIR)/syscall.asm
 TASK_SRCS = $(TASK_DIR)/task.c $(TASK_DIR)/syscall.c
 FS_SRCS = $(FS_DIR)/fs.c
+SHELL_SRCS = $(SHELL_DIR)/shell.c
 
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
@@ -46,6 +48,7 @@ DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/a
 TASK_ASM_OBJS = $(TASK_DIR)/context_switch.o $(TASK_DIR)/syscall.o
 TASK_OBJS = $(TASK_DIR)/task.o $(TASK_DIR)/syscall_c.o
 FS_OBJS = $(FS_DIR)/fs.o
+SHELL_OBJS = $(SHELL_DIR)/shell.o
 
 # Итоговый образ
 KERNEL_BIN = kernel.bin
@@ -117,8 +120,12 @@ $(TASK_DIR)/syscall_c.o: $(TASK_DIR)/syscall.c
 $(FS_DIR)/fs.o: $(FS_DIR)/fs.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Сборка shell
+$(SHELL_DIR)/shell.o: $(SHELL_DIR)/shell.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Линковка kernel
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS)
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 # Создание ISO образа (для загрузки через GRUB)
@@ -138,5 +145,5 @@ qemu: $(KERNEL_BIN)
 
 # Очистка
 clean:
-	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
+	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
 	rm -rf isodir

@@ -86,6 +86,8 @@ FlowDay-OS/
 │       └── syscall.asm    # System call entry
 │   └── fs/                # File system
 │       └── fs.c           # File system implementation
+│   └── shell/             # Shell (Command Line Interface)
+│       └── shell.c        # Shell implementation
 ├── include/               # Header files
 │   ├── kernel.h
 │   ├── multiboot.h
@@ -102,7 +104,8 @@ FlowDay-OS/
 │   ├── task.h
 │   ├── syscall.h
 │   ├── ata.h
-│   └── fs.h
+│   ├── fs.h
+│   └── shell.h
 ├── kernel.ld              # Linker script
 ├── grub.cfg               # GRUB configuration
 └── Makefile               # Build system
@@ -171,6 +174,18 @@ FlowDay-OS/
     - [x] Seek functionality
     - [ ] Directory operations (stub)
     - [ ] Actual disk-based FS (in-memory stub for now)
+- [x] Shell (Command Line Interface)
+  - [x] Interactive command processor
+  - [x] Command parsing and execution
+  - [x] Built-in commands:
+    - [x] `help` - Show available commands
+    - [x] `clear` - Clear the screen
+    - [x] `echo` - Echo arguments
+    - [x] `time` - Show system uptime
+    - [x] `meminfo` - Show memory information
+    - [x] `reboot` - Reboot the system
+  - [x] Command registration system
+  - [x] Input handling with backspace support
 
 ### 🚧 In Progress / Planned
 
