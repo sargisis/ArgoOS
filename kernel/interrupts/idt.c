@@ -98,6 +98,10 @@ void idt_init(void) {
     idt_set_gate(30, (uint32_t)isr30, 0x08, IDT_GATE_32BIT_INT);
     idt_set_gate(31, (uint32_t)isr31, 0x08, IDT_GATE_32BIT_INT);
     
+    // Устанавливаем системный вызов (INT 0x80)
+    extern void syscall_entry(void);
+    idt_set_gate(0x80, (uint32_t)syscall_entry, 0x08, IDT_GATE_32BIT_INT | IDT_FLAG_RING3);
+    
     // Устанавливаем IRQ обработчики (32-47)
     idt_set_gate(32, (uint32_t)irq0, 0x08, IDT_GATE_32BIT_INT);
     idt_set_gate(33, (uint32_t)irq1, 0x08, IDT_GATE_32BIT_INT);
