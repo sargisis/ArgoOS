@@ -1,0 +1,42 @@
+# Скомпилированные объектные файлы
+*.o
+*.obj
+
+# Бинарные файлы ядра
+*.bin
+kernel.bin
+
+# ISO образы
+*.iso
+flowday-os.iso
+
+# Временные директории сборки
+isodir/
+build/
+dist/
+
+# Временные файлы редакторов
+*~
+*.swp
+*.swo
+*.swn
+.DS_Store
+.vscode/
+.idea/
+*.code-workspace
+
+# Логи
+*.log
+
+# Backup файлы
+*.bak
+*.backup
+*~
+
+# QEMU образы дисков (если будут создаваться)
+*.img
+*.qcow2
+
+# Сгенерированные файлы
+tags
+cscope.out
