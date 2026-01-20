@@ -1,91 +1,194 @@
 # FlowDay-OS
 
-Минималистичная операционная система, написанная с нуля на C и ассемблере x86.
+A minimalistic operating system written from scratch in C and x86 assembly.
 
-## Особенности
+## Features
 
-- ✅ Multiboot 1 совместимость
-- ✅ Freestanding режим (без стандартной библиотеки
-- ✅ Собственная реализация базовых функций (string, VGA)
-- ✅ Минимализм и скорость
-- ✅ Глубокое понимание железа
+- ✅ **Multiboot 1** compatibility
+- ✅ **Freestanding mode** (no standard library)
+- ✅ **Custom implementations** of basic functions (string, VGA)
+- ✅ **Memory Management**
+  - Physical Memory Manager (PMM) with bitmap allocation
+  - Virtual memory with paging (4KB pages)
+  - Heap allocator (kmalloc/kfree/krealloc)
+- ✅ **Interrupts & Exceptions**
+  - IDT (Interrupt Descriptor Table) with 256 entries
+  - Exception handlers for all x86 exceptions
+  - IRQ handlers (0-15)
+  - PIC (Programmable Interrupt Controller) driver
+- ✅ Minimalism and speed
+- ✅ Deep hardware understanding
 
-## Требования
+## Requirements
 
-- `nasm` - ассемблер
-- `gcc` - компилятор C (с поддержкой 32-bit)
-- `ld` - линкер
-- `grub-mkrescue` - для создания ISO образа
-- `qemu-system-i386` - для эмуляции
+- `nasm` - assembler
+- `gcc` - C compiler (with 32-bit support)
+- `ld` - linker
+- `grub-mkrescue` - for creating ISO image
+- `qemu-system-i386` - for emulation
 
-### Установка зависимостей (Ubuntu/Debian)
+### Installing Dependencies (Ubuntu/Debian)
 
 ```bash
 sudo apt-get update
 sudo apt-get install nasm gcc-multilib binutils grub-pc-bin qemu-system-x86
 ```
 
-## Сборка
+## Building
 
 ```bash
 make
 ```
 
-Это создаст `kernel.bin` - скомпилированное ядро.
+This will create `kernel.bin` - the compiled kernel.
 
-## Запуск
+## Running
 
-### Вариант 1: Прямая загрузка через QEMU
+### Option 1: Direct kernel loading via QEMU
 
 ```bash
 make qemu
 ```
 
-### Вариант 2: ISO образ (рекомендуется)
+### Option 2: ISO image (recommended)
 
 ```bash
 make iso
 make run
 ```
 
-## Структура проекта
+## Project Structure
 
 ```
 FlowDay-OS/
-├── boot/              # Multiboot entry point
+├── boot/                  # Multiboot entry point
 │   └── multiboot.asm
-├── kernel/            # Основное ядро
-│   ├── kernel.c       # Главный файл ядра
-│   └── lib/           # Библиотечные функции
-│       ├── vga.c      # VGA драйвер
-│       └── string.c   # Функции работы со строками
-├── include/           # Заголовочные файлы
+├── kernel/                # Main kernel
+│   ├── kernel.c           # Main kernel file
+│   ├── lib/               # Library functions
+│   │   ├── vga.c          # VGA driver
+│   │   └── string.c       # String functions
+│   ├── memory/            # Memory management
+│   │   ├── pmm.c          # Physical Memory Manager
+│   │   ├── paging.c       # Virtual memory (paging)
+│   │   └── heap.c         # Heap allocator
+│   └── interrupts/        # Interrupt handling
+│       ├── idt.asm        # IDT assembly handlers
+│       ├── idt.c          # IDT implementation
+│       └── pic.c          # PIC driver
+├── include/               # Header files
 │   ├── kernel.h
 │   ├── multiboot.h
 │   ├── vga.h
 │   ├── string.h
-│   └── types.h
-├── kernel.ld          # Linker script
-├── grub.cfg           # GRUB конфигурация
-└── Makefile           # Сборка проекта
+│   ├── types.h
+│   ├── pmm.h
+│   ├── paging.h
+│   ├── heap.h
+│   ├── idt.h
+│   └── pic.h
+├── kernel.ld              # Linker script
+├── grub.cfg               # GRUB configuration
+└── Makefile               # Build system
 ```
 
-## Текущий статус
+## Current Status
 
-- [x] Multiboot загрузка
-- [x] Базовое ядро
-- [x] VGA текстовый режим
-- [x] Собственные функции работы со строками
-- [ ] Управление памятью
-- [ ] Прерывания (IDT)
-- [ ] Драйверы устройств (клавиатура, таймер)
-- [ ] Многозадачность
-- [ ] Файловая система
+### ✅ Completed
 
-## Лицензия
+- [x] Multiboot bootloader
+- [x] Basic kernel initialization
+- [x] VGA text mode driver
+- [x] Custom string functions (strlen, memcpy, memset, etc.)
+- [x] Physical Memory Manager (PMM)
+  - Bitmap-based page allocation
+  - Memory map parsing from Multiboot
+  - Page allocation/deallocation
+- [x] Virtual Memory (Paging)
+  - Page Directory and Page Tables
+  - Identity mapping for first 4MB
+  - Dynamic page mapping
+- [x] Heap Allocator
+  - kmalloc/kfree/krealloc
+  - Linked list-based block management
+  - Automatic heap expansion
+- [x] Interrupt Descriptor Table (IDT)
+  - 32 exception handlers
+  - 16 IRQ handlers
+  - Exception error reporting
+- [x] PIC (Programmable Interrupt Controller)
+  - Master and slave PIC initialization
+  - IRQ masking/unmasking
+  - EOI (End Of Interrupt) handling
+
+### 🚧 In Progress / Planned
+
+- [ ] Device Drivers
+  - [ ] Timer (PIT) - for multitasking
+  - [ ] Keyboard (PS/2) - for input
+  - [ ] VGA graphics mode (optional)
+- [ ] Multitasking
+  - [ ] Process scheduler
+  - [ ] Context switching
+  - [ ] System calls (syscalls)
+- [ ] File System
+  - [ ] Disk driver (ATA)
+  - [ ] Simple FS or FAT support
+- [ ] Shell
+  - [ ] Command line interface
+  - [ ] Basic commands (ls, cd, cat, etc.)
+
+## Architecture
+
+- **Architecture**: x86 (32-bit)
+- **Boot**: Multiboot 1 specification
+- **Memory Model**: Protected mode with paging
+- **Code Style**: Freestanding C (no stdlib)
+
+## Memory Layout
+
+- `0x00000000 - 0x000FFFFF`: First 1MB (kernel, boot code)
+- `0x00100000 - 0x001FFFFF`: Kernel code (1MB)
+- `0x00200000 - 0x003FFFFF`: PMM bitmap and structures
+- `0x00400000+`: Heap area (dynamic allocation)
+
+## Interrupts
+
+- **0-31**: CPU Exceptions (Division by Zero, Page Fault, etc.)
+- **32-47**: IRQ handlers (Timer, Keyboard, etc.)
+- **48+**: Available for system calls
+
+## Development
+
+### Code Style
+
+- Freestanding C (no standard library)
+- All basic functions implemented from scratch
+- Minimal dependencies
+- Clear, commented code
+
+### Building from Source
+
+1. Clone the repository
+2. Install dependencies (see Requirements)
+3. Run `make` to build
+4. Run `make qemu` to test in QEMU
+
+### Debugging
+
+- Use QEMU with GDB: `qemu-system-i386 -kernel kernel.bin -s -S`
+- Connect GDB: `gdb kernel.bin` then `target remote :1234`
+
+## License
 
 MIT License
 
-## Автор
+## Author
 
 FlowDay-OS Development Team
+
+## Acknowledgments
+
+- Inspired by OSDev.org tutorials
+- Multiboot specification
+- x86 architecture documentation

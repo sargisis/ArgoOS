@@ -18,6 +18,7 @@ BOOT_DIR = boot
 KERNEL_DIR = kernel
 LIB_DIR = $(KERNEL_DIR)/lib
 MEMORY_DIR = $(KERNEL_DIR)/memory
+INTERRUPTS_DIR = $(KERNEL_DIR)/interrupts
 INCLUDE_DIR = include
 
 # Исходные файлы
@@ -25,12 +26,15 @@ BOOT_SRC = $(BOOT_DIR)/multiboot.asm
 KERNEL_SRC = $(KERNEL_DIR)/kernel.c
 LIB_SRCS = $(LIB_DIR)/vga.c $(LIB_DIR)/string.c
 MEMORY_SRCS = $(MEMORY_DIR)/pmm.c $(MEMORY_DIR)/paging.c $(MEMORY_DIR)/heap.c
+INTERRUPTS_ASM = $(INTERRUPTS_DIR)/idt.asm
+INTERRUPTS_SRCS = $(INTERRUPTS_DIR)/idt.c $(INTERRUPTS_DIR)/pic.c
 
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
 KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
 LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o
 MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
+INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
 
 # Итоговый образ
 KERNEL_BIN = kernel.bin
@@ -65,8 +69,18 @@ $(MEMORY_DIR)/paging.o: $(MEMORY_DIR)/paging.c
 $(MEMORY_DIR)/heap.o: $(MEMORY_DIR)/heap.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Сборка interrupts
+$(INTERRUPTS_DIR)/idt.o: $(INTERRUPTS_ASM)
+	$(ASM) $(ASMFLAGS) $< -o $@
+
+$(INTERRUPTS_DIR)/idt_c.o: $(INTERRUPTS_DIR)/idt.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(INTERRUPTS_DIR)/pic.o: $(INTERRUPTS_DIR)/pic.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Линковка kernel
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS)
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
 # Создание ISO образа (для загрузки через GRUB)
@@ -86,5 +100,5 @@ qemu: $(KERNEL_BIN)
 
 # Очистка
 clean:
-	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
+	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
 	rm -rf isodir
