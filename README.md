@@ -76,6 +76,9 @@ FlowDay-OS/
 │       ├── idt.asm        # IDT assembly handlers
 │       ├── idt.c          # IDT implementation
 │       └── pic.c          # PIC driver
+│   └── drivers/           # Device drivers
+│       ├── timer.c        # Timer driver (PIT)
+│       └── keyboard.c     # Keyboard driver (PS/2)
 ├── include/               # Header files
 │   ├── kernel.h
 │   ├── multiboot.h
@@ -86,7 +89,9 @@ FlowDay-OS/
 │   ├── paging.h
 │   ├── heap.h
 │   ├── idt.h
-│   └── pic.h
+│   ├── pic.h
+│   ├── timer.h
+│   └── keyboard.h
 ├── kernel.ld              # Linker script
 ├── grub.cfg               # GRUB configuration
 └── Makefile               # Build system
@@ -120,13 +125,21 @@ FlowDay-OS/
   - Master and slave PIC initialization
   - IRQ masking/unmasking
   - EOI (End Of Interrupt) handling
+- [x] Device Drivers
+  - [x] Timer (PIT) - Programmable Interval Timer
+    - Configurable frequency (default 100Hz)
+    - Tick counter and millisecond timing
+    - Sleep function
+    - Timer callbacks
+  - [x] Keyboard (PS/2) - PS/2 keyboard driver
+    - Scancode to ASCII conversion
+    - Shift and Caps Lock support
+    - Keyboard callbacks
+    - Real-time key input handling
 
 ### 🚧 In Progress / Planned
 
-- [ ] Device Drivers
-  - [ ] Timer (PIT) - for multitasking
-  - [ ] Keyboard (PS/2) - for input
-  - [ ] VGA graphics mode (optional)
+- [ ] VGA graphics mode (optional)
 - [ ] Multitasking
   - [ ] Process scheduler
   - [ ] Context switching

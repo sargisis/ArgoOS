@@ -10,6 +10,8 @@
 #include "heap.h"
 #include "idt.h"
 #include "pic.h"
+#include "timer.h"
+#include "keyboard.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -43,9 +45,18 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     idt_init();
     pic_init();
     
+    // Инициализация драйверов устройств
+    vga_puts("Initializing device drivers...\n");
+    timer_init(TIMER_FREQUENCY);
+    keyboard_init();
+    
     // Включаем прерывания
     asm volatile("sti");
     vga_puts("Interrupts enabled.\n");
+    vga_puts("Timer initialized at ");
+    vga_putdec(TIMER_FREQUENCY);
+    vga_puts(" Hz\n");
+    vga_puts("Keyboard driver ready.\n");
     
     // Приветственное сообщение
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
@@ -102,10 +113,36 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_puts("Welcome to FlowDay-OS!\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("System is ready.\n");
+    vga_puts("Type something on your keyboard...\n");
     vga_puts("\n");
     
     // Основной цикл ядра
+    uint32_t last_second = 0;
     while (1) {
         asm volatile("hlt"); // Ожидание прерывания
+        
+        // Обработка клавиатуры
+        if (keyboard_is_key_available()) {
+            char key = keyboard_get_key();
+            if (key == '\b') {
+                // Backspace - удаляем последний символ
+                vga_putchar('\b');
+                vga_putchar(' ');
+                vga_putchar('\b');
+            } else if (key == '\n') {
+                // Enter - новая строка
+                vga_putchar('\n');
+            } else if (key >= 32 && key < 127) {
+                // Печатаемый символ
+                vga_putchar(key);
+            }
+        }
+        
+        // Показываем время каждую секунду
+        uint32_t current_second = timer_get_ms() / 1000;
+        if (current_second != last_second) {
+            last_second = current_second;
+            // Можно добавить вывод времени, если нужно
+        }
     }
 }

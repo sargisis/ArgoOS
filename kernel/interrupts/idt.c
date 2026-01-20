@@ -157,15 +157,28 @@ void isr_handler(uint32_t int_no, uint32_t err_code) {
     // asm volatile("cli; hlt");
 }
 
+// Внешние обработчики устройств
+extern void timer_handler(void);
+extern void keyboard_handler(void);
+
 // Обработчик IRQ
 void irq_handler(uint32_t int_no) {
     // Преобразуем номер прерывания в номер IRQ (32-47 -> 0-15)
     uint8_t irq = int_no - 32;
     
+    // Вызываем конкретные обработчики устройств
+    switch (irq) {
+        case 0:  // Timer
+            timer_handler();
+            break;
+        case 1:  // Keyboard
+            keyboard_handler();
+            break;
+        default:
+            // Unknown IRQ
+            break;
+    }
+    
     // Отправляем EOI (End Of Interrupt) в PIC
     pic_send_eoi(irq);
-    
-    // Здесь будут вызываться конкретные обработчики устройств
-    // Например, для таймера, клавиатуры и т.д.
-    // Пока просто игнорируем
 }
