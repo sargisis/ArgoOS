@@ -79,6 +79,11 @@ FlowDay-OS/
 │   └── drivers/           # Device drivers
 │       ├── timer.c        # Timer driver (PIT)
 │       └── keyboard.c     # Keyboard driver (PS/2)
+│   └── task/              # Task/Process management
+│       ├── task.c         # Task management
+│       ├── context_switch.asm  # Context switching
+│       ├── syscall.c      # System calls
+│       └── syscall.asm    # System call entry
 ├── include/               # Header files
 │   ├── kernel.h
 │   ├── multiboot.h
@@ -91,7 +96,9 @@ FlowDay-OS/
 │   ├── idt.h
 │   ├── pic.h
 │   ├── timer.h
-│   └── keyboard.h
+│   ├── keyboard.h
+│   ├── task.h
+│   └── syscall.h
 ├── kernel.ld              # Linker script
 ├── grub.cfg               # GRUB configuration
 └── Makefile               # Build system
@@ -136,14 +143,26 @@ FlowDay-OS/
     - Shift and Caps Lock support
     - Keyboard callbacks
     - Real-time key input handling
+- [x] Multitasking
+  - [x] Task/Process structure
+  - [x] Round-robin scheduler
+  - [x] Context switching (assembly)
+  - [x] System calls (INT 0x80)
+    - [x] SYS_EXIT
+    - [x] SYS_YIELD
+    - [x] SYS_SLEEP
+    - [x] SYS_WRITE
+    - [x] SYS_READ (stub)
+    - [x] SYS_FORK (stub)
+    - [x] SYS_EXEC (stub)
+  - [x] Preemptive multitasking (timer-based)
 
 ### 🚧 In Progress / Planned
 
 - [ ] VGA graphics mode (optional)
-- [ ] Multitasking
-  - [ ] Process scheduler
-  - [ ] Context switching
-  - [ ] System calls (syscalls)
+- [ ] File System
+  - [ ] Disk driver (ATA)
+  - [ ] Simple FS or FAT support
 - [ ] File System
   - [ ] Disk driver (ATA)
   - [ ] Simple FS or FAT support
