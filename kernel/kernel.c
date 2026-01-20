@@ -8,6 +8,8 @@
 #include "pmm.h"
 #include "paging.h"
 #include "heap.h"
+#include "idt.h"
+#include "pic.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -35,6 +37,15 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     pmm_init(mb_info);
     paging_init();
     heap_init();
+    
+    // Инициализация прерываний
+    vga_puts("Initializing interrupts...\n");
+    idt_init();
+    pic_init();
+    
+    // Включаем прерывания
+    asm volatile("sti");
+    vga_puts("Interrupts enabled.\n");
     
     // Приветственное сообщение
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
