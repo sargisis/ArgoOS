@@ -16,6 +16,7 @@
 #include "syscall.h"
 #include "ata.h"
 #include "fs.h"
+#include "shell.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -128,36 +129,16 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_puts("Welcome to FlowDay-OS!\n");
     vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
     vga_puts("System is ready.\n");
-    vga_puts("Type something on your keyboard...\n");
     vga_puts("\n");
     
-    // Основной цикл ядра
-    uint32_t last_second = 0;
+    // Инициализация shell
+    shell_init();
+    
+    // Запуск shell (это блокирующий вызов)
+    shell_run();
+    
+    // Этот код никогда не выполнится, но на всякий случай
     while (1) {
-        asm volatile("hlt"); // Ожидание прерывания
-        
-        // Обработка клавиатуры
-        if (keyboard_is_key_available()) {
-            char key = keyboard_get_key();
-            if (key == '\b') {
-                // Backspace - удаляем последний символ
-                vga_putchar('\b');
-                vga_putchar(' ');
-                vga_putchar('\b');
-            } else if (key == '\n') {
-                // Enter - новая строка
-                vga_putchar('\n');
-            } else if (key >= 32 && key < 127) {
-                // Печатаемый символ
-                vga_putchar(key);
-            }
-        }
-        
-        // Показываем время каждую секунду
-        uint32_t current_second = timer_get_ms() / 1000;
-        if (current_second != last_second) {
-            last_second = current_second;
-            // Можно добавить вывод времени, если нужно
-        }
+        asm volatile("hlt");
     }
 }
