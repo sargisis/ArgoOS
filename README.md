@@ -84,6 +84,8 @@ FlowDay-OS/
 │       ├── context_switch.asm  # Context switching
 │       ├── syscall.c      # System calls
 │       └── syscall.asm    # System call entry
+│   └── fs/                # File system
+│       └── fs.c           # File system implementation
 ├── include/               # Header files
 │   ├── kernel.h
 │   ├── multiboot.h
@@ -98,7 +100,9 @@ FlowDay-OS/
 │   ├── timer.h
 │   ├── keyboard.h
 │   ├── task.h
-│   └── syscall.h
+│   ├── syscall.h
+│   ├── ata.h
+│   └── fs.h
 ├── kernel.ld              # Linker script
 ├── grub.cfg               # GRUB configuration
 └── Makefile               # Build system
@@ -156,13 +160,25 @@ FlowDay-OS/
     - [x] SYS_FORK (stub)
     - [x] SYS_EXEC (stub)
   - [x] Preemptive multitasking (timer-based)
+- [x] File System
+  - [x] ATA disk driver
+    - [x] Read/write sectors
+    - [x] Device identification
+  - [x] File system interface
+    - [x] File descriptors
+    - [x] Open/close files
+    - [x] Read/write operations
+    - [x] Seek functionality
+    - [ ] Directory operations (stub)
+    - [ ] Actual disk-based FS (in-memory stub for now)
 
 ### 🚧 In Progress / Planned
 
 - [ ] VGA graphics mode (optional)
-- [ ] File System
-  - [ ] Disk driver (ATA)
-  - [ ] Simple FS or FAT support
+- [ ] Complete file system implementation
+  - [ ] Directory structure on disk
+  - [ ] File metadata storage
+  - [ ] FAT or custom FS format
 - [ ] File System
   - [ ] Disk driver (ATA)
   - [ ] Simple FS or FAT support

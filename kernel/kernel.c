@@ -14,6 +14,8 @@
 #include "keyboard.h"
 #include "task.h"
 #include "syscall.h"
+#include "ata.h"
+#include "fs.h"
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -56,6 +58,11 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_puts("Initializing multitasking...\n");
     task_init();
     syscall_init();
+    
+    // Инициализация файловой системы
+    vga_puts("Initializing file system...\n");
+    ata_init();
+    fs_init();
     
     // Включаем прерывания
     asm volatile("sti");
