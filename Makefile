@@ -54,8 +54,9 @@ SHELL_OBJS = $(SHELL_DIR)/shell.o
 # Итоговый образ
 KERNEL_BIN = kernel.bin
 OS_IMAGE = flowday-os.iso
+DISK_IMG = disk.img
 
-.PHONY: all clean run qemu iso
+.PHONY: all clean run qemu qemu-disk iso disk
 
 all: $(KERNEL_BIN)
 
@@ -148,7 +149,18 @@ run: iso
 qemu: $(KERNEL_BIN)
 	qemu-system-i386 -kernel $(KERNEL_BIN) -serial stdio -display none
 
+# Создание диска для файловой системы
+disk: $(DISK_IMG)
+
+$(DISK_IMG):
+	dd if=/dev/zero of=$(DISK_IMG) bs=1M count=10 2>/dev/null || \
+	qemu-img create -f raw $(DISK_IMG) 10M
+
+# Запуск в QEMU с диском (для сохранения файловой системы)
+qemu-disk: $(KERNEL_BIN) $(DISK_IMG)
+	qemu-system-i386 -kernel $(KERNEL_BIN) -hda $(DISK_IMG) -serial stdio -display none
+
 # Очистка
 clean:
-	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(KERNEL_BIN) $(OS_IMAGE)
+	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(KERNEL_BIN) $(OS_IMAGE) $(DISK_IMG)
 	rm -rf isodir

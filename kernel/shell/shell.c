@@ -36,6 +36,7 @@ static int cmd_grep(int argc, char** argv);
 static int cmd_wc(int argc, char** argv);
 static int cmd_head(int argc, char** argv);
 static int cmd_tail(int argc, char** argv);
+static int cmd_save(int argc, char** argv);
 
 void shell_init(void) {
     command_count = 0;
@@ -64,6 +65,7 @@ void shell_init(void) {
     shell_register_command("wc", "Word and line count", cmd_wc);
     shell_register_command("head", "Show first lines of file", cmd_head);
     shell_register_command("tail", "Show last lines of file", cmd_tail);
+    shell_register_command("save", "Save filesystem to disk", cmd_save);
 }
 
 void shell_register_command(const char* name, const char* description, command_handler_t handler) {
@@ -1052,4 +1054,20 @@ static int cmd_tail(int argc, char** argv) {
     
     kfree(buffer);
     return 0;
+}
+
+static int cmd_save(int argc, char** argv) {
+    (void)argc;  // Unused
+    (void)argv;  // Unused
+    
+    serial_puts("Saving filesystem to disk...\n");
+    
+    if (fs_save() == 0) {
+        serial_puts("Filesystem saved successfully!\n");
+        return 0;
+    } else {
+        serial_puts("Error: Failed to save filesystem\n");
+        serial_puts("(Make sure QEMU has a disk attached: -hda disk.img)\n");
+        return -1;
+    }
 }

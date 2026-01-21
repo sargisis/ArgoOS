@@ -103,12 +103,19 @@ int fs_init(void) {
         inodes[i].next = NULL;
     }
     
-    // Create root directory
+    // Try to load from disk first
+    if (fs_load() == 0) {
+        serial_puts("fs_init: Loaded filesystem from disk\n");
+        fs_initialized = 1;
+        return 0;
+    }
+    
+    // If load failed, create new filesystem
+    serial_puts("fs_init: Creating new filesystem\n");
     root_dir = fs_create_inode("/", FS_TYPE_DIR, NULL);
     current_dir = root_dir;
     
     serial_puts("fs_init: In-memory file system initialized\n");
-    serial_puts("File system: No ATA device (using in-memory FS)\n");
     
     fs_initialized = 1;
     serial_puts("fs_init: Done\n");
@@ -551,5 +558,281 @@ int fs_remove(const char* path) {
     }
     node->valid = 0;
     
+    return 0;
+}
+
+// Disk-based filesystem format:
+// Sector 0: Superblock (magic, inode count, etc.)
+// Sectors 1-64: Inode table (serialized inodes)
+// Sectors 65+: Data blocks
+
+#define FS_MAGIC 0x464C4F57  // "FLOW"
+#define FS_SUPERBLOCK_LBA 0
+#define FS_INODE_TABLE_LBA 1
+#define FS_DATA_BLOCKS_LBA 65
+#define FS_MAX_INODES_ON_DISK 256
+
+// On-disk inode structure (simplified, without pointers)
+struct disk_inode {
+    char name[256];
+    uint32_t type;
+    uint32_t size;
+    uint32_t inode_num;
+    uint32_t parent_inode;
+    uint32_t data_lba;        // LBA where file data starts
+    uint32_t valid;
+};
+
+// Superblock structure
+struct superblock {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t inode_count;
+    uint32_t data_start_lba;
+    uint32_t reserved[124];   // Pad to 512 bytes
+};
+
+// Helper: Collect all valid inodes into array
+static int collect_inodes(struct inode** out_inodes, uint32_t max_count) {
+    uint32_t count = 0;
+    for (int i = 0; i < MAX_FILES + MAX_DIRS && count < max_count; i++) {
+        if (inodes[i].valid) {
+            out_inodes[count++] = &inodes[i];
+        }
+    }
+    return count;
+}
+
+// Helper: Find inode by number
+static struct inode* find_inode_by_num(uint32_t inode_num) {
+    for (int i = 0; i < MAX_FILES + MAX_DIRS; i++) {
+        if (inodes[i].valid && inodes[i].inode_num == inode_num) {
+            return &inodes[i];
+        }
+    }
+    return NULL;
+}
+
+// Save filesystem to disk
+int fs_save(void) {
+    if (!fs_initialized) {
+        return -1;
+    }
+    
+    serial_puts("fs_save: Starting...\n");
+    
+    // Collect all inodes
+    struct inode* inode_list[FS_MAX_INODES_ON_DISK];
+    int inode_count = collect_inodes(inode_list, FS_MAX_INODES_ON_DISK);
+    
+    if (inode_count == 0) {
+        serial_puts("fs_save: No inodes to save\n");
+        return -1;
+    }
+    
+    // Write superblock
+    struct superblock sb;
+    memset(&sb, 0, sizeof(sb));
+    sb.magic = FS_MAGIC;
+    sb.version = 1;
+    sb.inode_count = inode_count;
+    sb.data_start_lba = FS_DATA_BLOCKS_LBA;
+    
+    if (ata_write_sectors(FS_SUPERBLOCK_LBA, 1, &sb) != 0) {
+        serial_puts("fs_save: Failed to write superblock\n");
+        return -1;
+    }
+    
+    // Calculate how many sectors needed for inode table
+    uint32_t inode_sectors = (inode_count * sizeof(struct disk_inode) + ATA_SECTOR_SIZE - 1) / ATA_SECTOR_SIZE;
+    
+    // Allocate buffer for inode table
+    char* inode_buffer = (char*)kmalloc(inode_sectors * ATA_SECTOR_SIZE);
+    if (!inode_buffer) {
+        serial_puts("fs_save: Out of memory\n");
+        return -1;
+    }
+    memset(inode_buffer, 0, inode_sectors * ATA_SECTOR_SIZE);
+    
+    // Convert in-memory inodes to disk format
+    struct disk_inode* disk_inodes = (struct disk_inode*)inode_buffer;
+    uint32_t current_data_lba = FS_DATA_BLOCKS_LBA;
+    
+    for (int i = 0; i < inode_count; i++) {
+        struct inode* node = inode_list[i];
+        struct disk_inode* dnode = &disk_inodes[i];
+        
+        strncpy(dnode->name, node->name, 255);
+        dnode->name[255] = '\0';
+        dnode->type = node->type;
+        dnode->size = node->size;
+        dnode->inode_num = node->inode_num;
+        dnode->valid = 1;
+        
+        // Find parent inode number
+        if (node->parent) {
+            dnode->parent_inode = node->parent->inode_num;
+        } else {
+            dnode->parent_inode = 0;
+        }
+        
+        // For files, save data and record LBA
+        if (node->type == FS_TYPE_FILE && node->data && node->size > 0) {
+            uint32_t data_sectors = (node->size + ATA_SECTOR_SIZE - 1) / ATA_SECTOR_SIZE;
+            dnode->data_lba = current_data_lba;
+            
+            // Write file data
+            if (ata_write_sectors(current_data_lba, data_sectors, node->data) != 0) {
+                serial_puts("fs_save: Failed to write file data\n");
+                kfree(inode_buffer);
+                return -1;
+            }
+            
+            current_data_lba += data_sectors;
+        } else {
+            dnode->data_lba = 0;
+        }
+    }
+    
+    // Write inode table
+    if (ata_write_sectors(FS_INODE_TABLE_LBA, inode_sectors, inode_buffer) != 0) {
+        serial_puts("fs_save: Failed to write inode table\n");
+        kfree(inode_buffer);
+        return -1;
+    }
+    
+    kfree(inode_buffer);
+    serial_puts("fs_save: Successfully saved filesystem\n");
+    return 0;
+}
+
+// Load filesystem from disk
+int fs_load(void) {
+    serial_puts("fs_load: Starting...\n");
+    
+    // Read superblock
+    struct superblock sb;
+    if (ata_read_sectors(FS_SUPERBLOCK_LBA, 1, &sb) != 0) {
+        serial_puts("fs_load: No disk or timeout (using in-memory FS)\n");
+        return -1;
+    }
+    
+    // Check magic
+    if (sb.magic != FS_MAGIC) {
+        serial_puts("fs_load: Invalid magic number (no filesystem on disk)\n");
+        return -1;
+    }
+    
+    if (sb.inode_count == 0 || sb.inode_count > FS_MAX_INODES_ON_DISK) {
+        serial_puts("fs_load: Invalid inode count\n");
+        return -1;
+    }
+    
+    // Calculate inode table size
+    uint32_t inode_sectors = (sb.inode_count * sizeof(struct disk_inode) + ATA_SECTOR_SIZE - 1) / ATA_SECTOR_SIZE;
+    
+    // Read inode table
+    char* inode_buffer = (char*)kmalloc(inode_sectors * ATA_SECTOR_SIZE);
+    if (!inode_buffer) {
+        serial_puts("fs_load: Out of memory\n");
+        return -1;
+    }
+    
+    if (ata_read_sectors(FS_INODE_TABLE_LBA, inode_sectors, inode_buffer) != 0) {
+        serial_puts("fs_load: Failed to read inode table\n");
+        kfree(inode_buffer);
+        return -1;
+    }
+    
+    struct disk_inode* disk_inodes = (struct disk_inode*)inode_buffer;
+    
+    // First pass: Create all inodes (without linking)
+    for (uint32_t i = 0; i < sb.inode_count; i++) {
+        struct disk_inode* dnode = &disk_inodes[i];
+        if (!dnode->valid) continue;
+        
+        // Find free inode slot
+        struct inode* node = NULL;
+        for (int j = 0; j < MAX_FILES + MAX_DIRS; j++) {
+            if (!inodes[j].valid) {
+                node = &inodes[j];
+                break;
+            }
+        }
+        
+        if (!node) {
+            serial_puts("fs_load: Too many inodes\n");
+            kfree(inode_buffer);
+            return -1;
+        }
+        
+        // Initialize inode
+        node->valid = 1;
+        node->inode_num = dnode->inode_num;
+        strncpy(node->name, dnode->name, 255);
+        node->name[255] = '\0';
+        node->type = dnode->type;
+        node->size = dnode->size;
+        node->parent = NULL;  // Will link in second pass
+        node->next = NULL;
+        
+        // Allocate data for files
+        if (node->type == FS_TYPE_FILE) {
+            node->data = kmalloc(MAX_FILE_SIZE);
+            if (!node->data) {
+                serial_puts("fs_load: Out of memory for file data\n");
+                kfree(inode_buffer);
+                return -1;
+            }
+            memset(node->data, 0, MAX_FILE_SIZE);
+            
+            // Load file data if it exists
+            if (dnode->data_lba > 0 && node->size > 0) {
+                uint32_t data_sectors = (node->size + ATA_SECTOR_SIZE - 1) / ATA_SECTOR_SIZE;
+                if (ata_read_sectors(dnode->data_lba, data_sectors, node->data) != 0) {
+                    serial_puts("fs_load: Failed to read file data\n");
+                    kfree(inode_buffer);
+                    return -1;
+                }
+            }
+        } else {
+            node->data = NULL;  // Directory - will link children in second pass
+        }
+        
+        // Find root directory
+        if (strcmp(node->name, "/") == 0 && node->type == FS_TYPE_DIR) {
+            root_dir = node;
+            current_dir = root_dir;
+        }
+    }
+    
+    // Second pass: Link parent-child relationships
+    for (uint32_t i = 0; i < sb.inode_count; i++) {
+        struct disk_inode* dnode = &disk_inodes[i];
+        if (!dnode->valid) continue;
+        
+        struct inode* node = find_inode_by_num(dnode->inode_num);
+        if (!node) continue;
+        
+        // Link parent
+        if (dnode->parent_inode > 0) {
+            node->parent = find_inode_by_num(dnode->parent_inode);
+        }
+        
+        // Link to parent's children list (for directories)
+        if (node->parent && node->parent->type == FS_TYPE_DIR) {
+            node->next = (struct inode*)node->parent->data;
+            node->parent->data = node;
+        }
+    }
+    
+    if (!root_dir) {
+        serial_puts("fs_load: Root directory not found\n");
+        kfree(inode_buffer);
+        return -1;
+    }
+    
+    kfree(inode_buffer);
+    serial_puts("fs_load: Successfully loaded filesystem\n");
     return 0;
 }
