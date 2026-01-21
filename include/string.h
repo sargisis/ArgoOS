@@ -5,6 +5,10 @@
 
 #include "types.h"
 
+// Assembly-optimized functions
+extern void* memcpy_asm(void* dest, const void* src, size_t n);
+extern void* memset_asm(void* s, int c, size_t n);
+
 // Функции работы со строками
 size_t strlen(const char* str);
 char* strcpy(char* dest, const char* src);
