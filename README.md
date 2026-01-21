@@ -7,6 +7,7 @@ A minimalistic operating system written from scratch in C and x86 assembly.
 - ✅ **Multiboot 1** compatibility
 - ✅ **Freestanding mode** (no standard library)
 - ✅ **Custom implementations** of basic functions (string, VGA)
+- ✅ **Assembly-optimized** string functions (memcpy, memset)
 - ✅ **Memory Management**
   - Physical Memory Manager (PMM) with bitmap allocation
   - Virtual memory with paging (4KB pages)
@@ -67,7 +68,8 @@ FlowDay-OS/
 │   ├── kernel.c           # Main kernel file
 │   ├── lib/               # Library functions
 │   │   ├── vga.c          # VGA driver
-│   │   └── string.c       # String functions
+│   │   ├── string.c       # String functions
+│   │   └── string_asm.asm # Assembly-optimized string functions
 │   ├── memory/            # Memory management
 │   │   ├── pmm.c          # Physical Memory Manager
 │   │   ├── paging.c       # Virtual memory (paging)
@@ -124,6 +126,10 @@ FlowDay-OS/
 - [x] Basic kernel initialization
 - [x] VGA text mode driver
 - [x] Custom string functions (strlen, memcpy, memset, etc.)
+- [x] Assembly-optimized string functions
+  - [x] memcpy_asm - Optimized memory copy (REP MOVSD)
+  - [x] memset_asm - Optimized memory set (REP STOSD)
+  - [x] 4-byte aligned copying for better performance
 - [x] Physical Memory Manager (PMM)
   - Bitmap-based page allocation
   - Memory map parsing from Multiboot
@@ -208,6 +214,10 @@ FlowDay-OS/
     - [x] `mv` - Move or rename file
     - [x] `cp` - Copy file
     - [x] `find` - Find files by name
+    - [x] `grep` - Search text in files
+    - [x] `wc` - Word and line count
+    - [x] `head` - Show first lines of file
+    - [x] `tail` - Show last lines of file
   - [x] Command registration system
   - [x] Input handling with backspace support
   - [x] Serial port I/O support
@@ -229,10 +239,9 @@ FlowDay-OS/
   - [ ] Inter-process communication (IPC)
   - [ ] Synchronization primitives (semaphores, mutexes)
 - [ ] Additional shell commands
-  - [ ] `grep` - Search text in files
-  - [ ] `wc` - Word count
-  - [ ] `head`/`tail` - View file beginning/end
   - [ ] Recursive directory operations
+  - [ ] `sort` - Sort file lines
+  - [ ] `uniq` - Remove duplicate lines
 
 ## Architecture
 
@@ -291,6 +300,10 @@ The OS uses serial port for input/output. When you run `make qemu`, you'll see:
 - `mv <src> <dst>` - Move or rename file
 - `cp <src> <dst>` - Copy file
 - `find <path> <pattern>` - Find files by name
+- `grep <pattern> <file>` - Search text in file
+- `wc <file>` - Count lines, words, and characters
+- `head <file> [lines]` - Show first lines (default: 10)
+- `tail <file> [lines]` - Show last lines (default: 10)
 - `time` - Show system uptime
 - `meminfo` - Show memory information
 - `clear` - Clear the screen
