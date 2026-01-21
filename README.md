@@ -78,14 +78,17 @@ FlowDay-OS/
 │       └── pic.c          # PIC driver
 │   └── drivers/           # Device drivers
 │       ├── timer.c        # Timer driver (PIT)
-│       └── keyboard.c     # Keyboard driver (PS/2)
+│       ├── keyboard.c     # Keyboard driver (PS/2)
+│       ├── serial.c       # Serial port driver (COM1)
+│       └── ata.c          # ATA disk driver
 │   └── task/              # Task/Process management
 │       ├── task.c         # Task management
 │       ├── context_switch.asm  # Context switching
 │       ├── syscall.c      # System calls
 │       └── syscall.asm    # System call entry
 │   └── fs/                # File system
-│       └── fs.c           # File system implementation
+│       ├── fs.c           # File system implementation
+│       └── elf_loader.c   # ELF executable loader
 │   └── shell/             # Shell (Command Line Interface)
 │       └── shell.c        # Shell implementation
 ├── include/               # Header files
@@ -105,7 +108,9 @@ FlowDay-OS/
 │   ├── syscall.h
 │   ├── ata.h
 │   ├── fs.h
-│   └── shell.h
+│   ├── shell.h
+│   ├── serial.h
+│   └── elf.h
 ├── kernel.ld              # Linker script
 ├── grub.cfg               # GRUB configuration
 └── Makefile               # Build system
@@ -150,18 +155,24 @@ FlowDay-OS/
     - Shift and Caps Lock support
     - Keyboard callbacks
     - Real-time key input handling
+  - [x] Serial Port (COM1) - UART driver
+    - Serial port initialization
+    - Character I/O (putchar/getchar)
+    - String output (puts)
+    - Number output (putdec/puthex)
+    - Used for terminal I/O in QEMU
 - [x] Multitasking
   - [x] Task/Process structure
   - [x] Round-robin scheduler
   - [x] Context switching (assembly)
   - [x] System calls (INT 0x80)
-    - [x] SYS_EXIT
-    - [x] SYS_YIELD
-    - [x] SYS_SLEEP
-    - [x] SYS_WRITE
-    - [x] SYS_READ (stub)
-    - [x] SYS_FORK (stub)
-    - [x] SYS_EXEC (stub)
+    - [x] SYS_EXIT - Exit current process
+    - [x] SYS_YIELD - Yield CPU to next task
+    - [x] SYS_SLEEP - Sleep for specified milliseconds
+    - [x] SYS_WRITE - Write to file descriptor (stdout/stderr/files)
+    - [x] SYS_READ - Read from file descriptor (stdin/files)
+    - [x] SYS_FORK - Clone current process
+    - [x] SYS_EXEC - Load and execute ELF program
   - [x] Preemptive multitasking (timer-based)
 - [x] File System
   - [x] ATA disk driver
@@ -172,20 +183,34 @@ FlowDay-OS/
     - [x] Open/close files
     - [x] Read/write operations
     - [x] Seek functionality
-    - [ ] Directory operations (stub)
-    - [ ] Actual disk-based FS (in-memory stub for now)
+    - [x] Directory operations (list, create, remove)
+    - [x] In-memory file system (files and directories)
+    - [x] Path resolution (absolute/relative, ".", "..")
+    - [x] Current directory management
+    - [ ] Actual disk-based FS (in-memory for now)
 - [x] Shell (Command Line Interface)
   - [x] Interactive command processor
   - [x] Command parsing and execution
   - [x] Built-in commands:
     - [x] `help` - Show available commands
     - [x] `clear` - Clear the screen
-    - [x] `echo` - Echo arguments
+    - [x] `echo` - Echo arguments (with `>` redirection)
     - [x] `time` - Show system uptime
     - [x] `meminfo` - Show memory information
     - [x] `reboot` - Reboot the system
+    - [x] `ls` - List directory contents
+    - [x] `cat` - Display file contents
+    - [x] `mkdir` - Create directory
+    - [x] `rm` - Remove file or directory
+    - [x] `pwd` - Print working directory
+    - [x] `cd` - Change directory
+    - [x] `touch` - Create empty file
+    - [x] `mv` - Move or rename file
+    - [x] `cp` - Copy file
+    - [x] `find` - Find files by name
   - [x] Command registration system
   - [x] Input handling with backspace support
+  - [x] Serial port I/O support
 
 ### 🚧 In Progress / Planned
 
@@ -194,12 +219,20 @@ FlowDay-OS/
   - [ ] Directory structure on disk
   - [ ] File metadata storage
   - [ ] FAT or custom FS format
-- [ ] File System
-  - [ ] Disk driver (ATA)
-  - [ ] Simple FS or FAT support
-- [ ] Shell
-  - [ ] Command line interface
-  - [ ] Basic commands (ls, cd, cat, etc.)
+  - [ ] Persistent storage (save to disk)
+- [ ] ELF Loader improvements
+  - [ ] Relocations support
+  - [ ] Dynamic linking
+  - [ ] Shared libraries
+- [ ] Process management improvements
+  - [ ] Process priorities
+  - [ ] Inter-process communication (IPC)
+  - [ ] Synchronization primitives (semaphores, mutexes)
+- [ ] Additional shell commands
+  - [ ] `grep` - Search text in files
+  - [ ] `wc` - Word count
+  - [ ] `head`/`tail` - View file beginning/end
+  - [ ] Recursive directory operations
 
 ## Architecture
 
@@ -235,7 +268,33 @@ FlowDay-OS/
 1. Clone the repository
 2. Install dependencies (see Requirements)
 3. Run `make` to build
-4. Run `make qemu` to test in QEMU
+4. Run `make qemu` to test in QEMU (uses serial port for I/O)
+
+### Running
+
+The OS uses serial port for input/output. When you run `make qemu`, you'll see:
+- All output in the terminal (via serial port)
+- You can type commands directly in the terminal
+- No need to grab keyboard input in QEMU window
+
+### Available Commands
+
+- `help` - Show all available commands
+- `ls [path]` - List directory contents
+- `cat <file>` - Display file contents
+- `mkdir <dir>` - Create directory
+- `rm <file|dir>` - Remove file or directory
+- `pwd` - Print current directory
+- `cd [path]` - Change directory
+- `touch <file>` - Create empty file
+- `echo [text] [> file]` - Echo text or write to file
+- `mv <src> <dst>` - Move or rename file
+- `cp <src> <dst>` - Copy file
+- `find <path> <pattern>` - Find files by name
+- `time` - Show system uptime
+- `meminfo` - Show memory information
+- `clear` - Clear the screen
+- `reboot` - Reboot the system
 
 ### Debugging
 
@@ -250,8 +309,3 @@ MIT License
 
 FlowDay-OS Development Team
 
-## Acknowledgments
-
-- Inspired by OSDev.org tutorials
-- Multiboot specification
-- x86 architecture documentation
