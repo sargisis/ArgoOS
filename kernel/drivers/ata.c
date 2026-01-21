@@ -3,20 +3,34 @@
 #include "ata.h"
 #include "vga.h"
 
-// Wait for ATA device to be ready
-static void ata_wait_ready(void) {
+// Wait for ATA device to be ready (with timeout)
+static int ata_wait_ready(void) {
     uint8_t status;
+    uint32_t timeout = 100000;  // Timeout counter
+    
     do {
         asm volatile("inb %1, %0" : "=a"(status) : "Nd"(ATA_PRIMARY_STATUS));
+        if (--timeout == 0) {
+            return -1;  // Timeout
+        }
     } while (status & ATA_STATUS_BSY);
+    
+    return 0;  // Success
 }
 
-// Wait for data request
-static void ata_wait_data(void) {
+// Wait for data request (with timeout)
+static int ata_wait_data(void) {
     uint8_t status;
+    uint32_t timeout = 100000;  // Timeout counter
+    
     do {
         asm volatile("inb %1, %0" : "=a"(status) : "Nd"(ATA_PRIMARY_STATUS));
+        if (--timeout == 0) {
+            return -1;  // Timeout
+        }
     } while (!(status & ATA_STATUS_DRQ) && !(status & ATA_STATUS_ERR));
+    
+    return 0;  // Success
 }
 
 void ata_init(void) {
@@ -40,7 +54,9 @@ int ata_read_sectors(uint32_t lba, uint8_t num_sectors, void* buffer) {
     }
     
     // Wait for device to be ready
-    ata_wait_ready();
+    if (ata_wait_ready() != 0) {
+        return -1; // Timeout or error
+    }
     
     // Select master drive and send LBA
     uint8_t device = 0xE0 | ((lba >> 24) & 0x0F);
@@ -61,7 +77,9 @@ int ata_read_sectors(uint32_t lba, uint8_t num_sectors, void* buffer) {
     uint16_t* buf = (uint16_t*)buffer;
     for (uint8_t i = 0; i < num_sectors; i++) {
         // Wait for data
-        ata_wait_data();
+        if (ata_wait_data() != 0) {
+            return -1; // Timeout
+        }
         
         // Check for errors
         uint8_t status;
@@ -87,7 +105,9 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
     }
     
     // Wait for device to be ready
-    ata_wait_ready();
+    if (ata_wait_ready() != 0) {
+        return -1; // Timeout or error
+    }
     
     // Select master drive and send LBA
     uint8_t device = 0xE0 | ((lba >> 24) & 0x0F);
@@ -108,7 +128,9 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
     const uint16_t* buf = (const uint16_t*)buffer;
     for (uint8_t i = 0; i < num_sectors; i++) {
         // Wait for data request
-        ata_wait_data();
+        if (ata_wait_data() != 0) {
+            return -1; // Timeout
+        }
         
         // Check for errors
         uint8_t status;
@@ -124,7 +146,9 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
         
         // Flush cache
         asm volatile("outb %0, %1" :: "a"((uint8_t)0xE7), "Nd"(ATA_PRIMARY_COMMAND));
-        ata_wait_ready();
+        if (ata_wait_ready() != 0) {
+            return -1; // Timeout
+        }
         
         buf += 256; // Move to next sector
     }

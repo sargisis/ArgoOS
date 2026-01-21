@@ -45,13 +45,24 @@ This will create `kernel.bin` - the compiled kernel.
 
 ## Running
 
-### Option 1: Direct kernel loading via QEMU
+### Option 1: Direct kernel loading via QEMU (no disk)
 
 ```bash
 make qemu
 ```
 
-### Option 2: ISO image (recommended)
+This runs the OS without a disk. Filesystem will be in-memory only (data lost on reboot).
+
+### Option 2: QEMU with disk (persistent filesystem)
+
+```bash
+make disk      # Create disk image (10MB)
+make qemu-disk # Run with disk attached
+```
+
+This allows you to save filesystem to disk using the `save` command. Data will persist across reboots.
+
+### Option 3: ISO image
 
 ```bash
 make iso
@@ -193,7 +204,10 @@ FlowDay-OS/
     - [x] In-memory file system (files and directories)
     - [x] Path resolution (absolute/relative, ".", "..")
     - [x] Current directory management
-    - [ ] Actual disk-based FS (in-memory for now)
+    - [x] Disk-based filesystem (save/load to disk)
+      - [x] Simple filesystem format (superblock, inode table, data blocks)
+      - [x] Automatic loading on boot
+      - [x] Manual save command
 - [x] Shell (Command Line Interface)
   - [x] Interactive command processor
   - [x] Command parsing and execution
@@ -225,11 +239,11 @@ FlowDay-OS/
 ### 🚧 In Progress / Planned
 
 - [ ] VGA graphics mode (optional)
-- [ ] Complete file system implementation
-  - [ ] Directory structure on disk
-  - [ ] File metadata storage
-  - [ ] FAT or custom FS format
-  - [ ] Persistent storage (save to disk)
+- [ ] File system improvements
+  - [ ] Better error handling
+  - [ ] Support for larger files
+  - [ ] Journaling for crash recovery
+  - [ ] Automatic periodic saves
 - [ ] ELF Loader improvements
   - [ ] Relocations support
   - [ ] Dynamic linking
@@ -285,6 +299,14 @@ The OS uses serial port for input/output. When you run `make qemu`, you'll see:
 - All output in the terminal (via serial port)
 - You can type commands directly in the terminal
 - No need to grab keyboard input in QEMU window
+
+**Note**: To use disk-based filesystem (persistent storage):
+1. Create disk: `make disk`
+2. Run with disk: `make qemu-disk`
+3. Use `save` command to save filesystem to disk
+4. Filesystem will be automatically loaded on next boot
+
+The disk image (`disk.img`) will persist between runs, so your files will be saved.
 
 ### Available Commands
 

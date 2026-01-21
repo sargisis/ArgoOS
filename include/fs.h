@@ -80,4 +80,10 @@ void fs_get_current_path(char* path, uint32_t max_len);
 // Resolve path to inode (internal, but needed for cd)
 void* fs_resolve_path_export(const char* path);
 
+// Save filesystem to disk
+int fs_save(void);
+
+// Load filesystem from disk
+int fs_load(void);
+
 #endif // FS_H
