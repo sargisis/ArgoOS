@@ -13,20 +13,13 @@ size_t strlen(const char* str) {
 }
 
 void* memcpy(void* dest, const void* src, size_t n) {
-    char* d = (char*)dest;
-    const char* s = (const char*)src;
-    for (size_t i = 0; i < n; i++) {
-        d[i] = s[i];
-    }
-    return dest;
+    // Use optimized assembly version for better performance
+    return memcpy_asm(dest, src, n);
 }
 
 void* memset(void* s, int c, size_t n) {
-    char* p = (char*)s;
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (char)c;
-    }
-    return s;
+    // Use optimized assembly version for better performance
+    return memset_asm(s, c, n);
 }
 
 void* memmove(void* dest, const void* src, size_t n) {

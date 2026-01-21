@@ -32,6 +32,10 @@ static int cmd_touch(int argc, char** argv);
 static int cmd_mv(int argc, char** argv);
 static int cmd_cp(int argc, char** argv);
 static int cmd_find(int argc, char** argv);
+static int cmd_grep(int argc, char** argv);
+static int cmd_wc(int argc, char** argv);
+static int cmd_head(int argc, char** argv);
+static int cmd_tail(int argc, char** argv);
 
 void shell_init(void) {
     command_count = 0;
@@ -56,6 +60,10 @@ void shell_init(void) {
     shell_register_command("mv", "Move or rename file", cmd_mv);
     shell_register_command("cp", "Copy file", cmd_cp);
     shell_register_command("find", "Find files", cmd_find);
+    shell_register_command("grep", "Search text in files", cmd_grep);
+    shell_register_command("wc", "Word and line count", cmd_wc);
+    shell_register_command("head", "Show first lines of file", cmd_head);
+    shell_register_command("tail", "Show last lines of file", cmd_tail);
 }
 
 void shell_register_command(const char* name, const char* description, command_handler_t handler) {
@@ -728,5 +736,320 @@ static int cmd_find(int argc, char** argv) {
         serial_puts("\n");
     }
     
+    return 0;
+}
+
+static int cmd_grep(int argc, char** argv) {
+    if (argc < 3) {
+        serial_puts("Usage: grep <pattern> <file>\n");
+        serial_puts("Example: grep hello file.txt\n");
+        return -1;
+    }
+    
+    const char* pattern = argv[1];
+    const char* filename = argv[2];
+    
+    // Open file
+    int fd = fs_open(filename, FS_MODE_READ);
+    if (fd < 0) {
+        serial_puts("Error: Cannot open file: ");
+        serial_puts(filename);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Read file into buffer
+    uint32_t file_size = fs_size(fd);
+    if (file_size == 0) {
+        fs_close(fd);
+        return 0; // Empty file
+    }
+    
+    char* buffer = (char*)kmalloc(file_size + 1);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(fd, buffer, file_size);
+    fs_close(fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    buffer[file_size] = '\0';
+    
+    // Simple pattern matching (exact substring search)
+    int pattern_len = strlen(pattern);
+    int found = 0;
+    int line_num = 1;
+    char* line_start = buffer;
+    
+    // Search for pattern
+    for (int i = 0; i <= (int)file_size - pattern_len; i++) {
+        // Check if we found the pattern
+        if (memcmp(buffer + i, pattern, pattern_len) == 0) {
+            // Find line number and print line
+            // Count newlines before this position
+            line_num = 1;
+            line_start = buffer;
+            for (int j = 0; j < i; j++) {
+                if (buffer[j] == '\n') {
+                    line_num++;
+                    line_start = buffer + j + 1;
+                }
+            }
+            
+            // Find end of line
+            char* line_end = buffer + i;
+            while (*line_end != '\n' && *line_end != '\0' && line_end < buffer + file_size) {
+                line_end++;
+            }
+            
+            // Print line number and line
+            serial_putdec(line_num);
+            serial_puts(": ");
+            
+            // Print from line start to line end
+            for (char* p = line_start; p < line_end && p < buffer + file_size; p++) {
+                serial_putchar(*p);
+            }
+            serial_puts("\n");
+            
+            found++;
+        }
+    }
+    
+    if (found == 0) {
+        serial_puts("Pattern not found\n");
+    }
+    
+    kfree(buffer);
+    return 0;
+}
+
+static int cmd_wc(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: wc <file>\n");
+        return -1;
+    }
+    
+    const char* filename = argv[1];
+    
+    // Open file
+    int fd = fs_open(filename, FS_MODE_READ);
+    if (fd < 0) {
+        serial_puts("Error: Cannot open file: ");
+        serial_puts(filename);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Read file
+    uint32_t file_size = fs_size(fd);
+    char* buffer = (char*)kmalloc(file_size + 1);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(fd, buffer, file_size);
+    fs_close(fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    buffer[file_size] = '\0';
+    
+    // Count lines, words, characters
+    uint32_t lines = 0;
+    uint32_t words = 0;
+    uint32_t chars = file_size;
+    int in_word = 0;
+    
+    for (uint32_t i = 0; i < file_size; i++) {
+        if (buffer[i] == '\n') {
+            lines++;
+        }
+        
+        if (buffer[i] == ' ' || buffer[i] == '\t' || buffer[i] == '\n' || buffer[i] == '\r') {
+            if (in_word) {
+                words++;
+                in_word = 0;
+            }
+        } else {
+            in_word = 1;
+        }
+    }
+    
+    // Count last word if file doesn't end with whitespace
+    if (in_word) {
+        words++;
+    }
+    
+    // Print results
+    serial_putdec(lines);
+    serial_puts(" ");
+    serial_putdec(words);
+    serial_puts(" ");
+    serial_putdec(chars);
+    serial_puts(" ");
+    serial_puts(filename);
+    serial_puts("\n");
+    
+    kfree(buffer);
+    return 0;
+}
+
+static int cmd_head(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: head <file> [lines]\n");
+        serial_puts("Default: 10 lines\n");
+        return -1;
+    }
+    
+    const char* filename = argv[1];
+    uint32_t num_lines = 10; // Default
+    
+    if (argc > 2) {
+        // Parse number of lines (simple - just convert string to number)
+        num_lines = 0;
+        const char* num_str = argv[2];
+        while (*num_str >= '0' && *num_str <= '9') {
+            num_lines = num_lines * 10 + (*num_str - '0');
+            num_str++;
+        }
+        if (num_lines == 0) num_lines = 10;
+    }
+    
+    // Open file
+    int fd = fs_open(filename, FS_MODE_READ);
+    if (fd < 0) {
+        serial_puts("Error: Cannot open file: ");
+        serial_puts(filename);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Read file
+    uint32_t file_size = fs_size(fd);
+    char* buffer = (char*)kmalloc(file_size + 1);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(fd, buffer, file_size);
+    fs_close(fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    buffer[file_size] = '\0';
+    
+    // Print first N lines
+    uint32_t lines_printed = 0;
+    for (uint32_t i = 0; i < file_size && lines_printed < num_lines; i++) {
+        serial_putchar(buffer[i]);
+        if (buffer[i] == '\n') {
+            lines_printed++;
+        }
+    }
+    
+    kfree(buffer);
+    return 0;
+}
+
+static int cmd_tail(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: tail <file> [lines]\n");
+        serial_puts("Default: 10 lines\n");
+        return -1;
+    }
+    
+    const char* filename = argv[1];
+    uint32_t num_lines = 10; // Default
+    
+    if (argc > 2) {
+        // Parse number of lines
+        num_lines = 0;
+        const char* num_str = argv[2];
+        while (*num_str >= '0' && *num_str <= '9') {
+            num_lines = num_lines * 10 + (*num_str - '0');
+            num_str++;
+        }
+        if (num_lines == 0) num_lines = 10;
+    }
+    
+    // Open file
+    int fd = fs_open(filename, FS_MODE_READ);
+    if (fd < 0) {
+        serial_puts("Error: Cannot open file: ");
+        serial_puts(filename);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Read file
+    uint32_t file_size = fs_size(fd);
+    char* buffer = (char*)kmalloc(file_size + 1);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(fd, buffer, file_size);
+    fs_close(fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    buffer[file_size] = '\0';
+    
+    // Count total lines
+    uint32_t total_lines = 0;
+    for (uint32_t i = 0; i < file_size; i++) {
+        if (buffer[i] == '\n') {
+            total_lines++;
+        }
+    }
+    
+    // Find starting position (skip lines until we have num_lines left)
+    uint32_t lines_to_skip = (total_lines > num_lines) ? (total_lines - num_lines) : 0;
+    uint32_t lines_skipped = 0;
+    uint32_t start_pos = 0;
+    
+    for (uint32_t i = 0; i < file_size; i++) {
+        if (buffer[i] == '\n') {
+            lines_skipped++;
+            if (lines_skipped > lines_to_skip) {
+                start_pos = i + 1;
+                break;
+            }
+        }
+    }
+    
+    // Print from start_pos to end
+    for (uint32_t i = start_pos; i < file_size; i++) {
+        serial_putchar(buffer[i]);
+    }
+    
+    kfree(buffer);
     return 0;
 }

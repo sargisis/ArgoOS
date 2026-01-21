@@ -29,6 +29,7 @@ INCLUDE_DIR = include
 BOOT_SRC = $(BOOT_DIR)/multiboot.asm
 KERNEL_SRC = $(KERNEL_DIR)/kernel.c
 LIB_SRCS = $(LIB_DIR)/vga.c $(LIB_DIR)/string.c
+LIB_ASM = $(LIB_DIR)/string_asm.asm
 MEMORY_SRCS = $(MEMORY_DIR)/pmm.c $(MEMORY_DIR)/paging.c $(MEMORY_DIR)/heap.c
 INTERRUPTS_ASM = $(INTERRUPTS_DIR)/idt.asm
 INTERRUPTS_SRCS = $(INTERRUPTS_DIR)/idt.c $(INTERRUPTS_DIR)/pic.c
@@ -41,7 +42,7 @@ SHELL_SRCS = $(SHELL_DIR)/shell.c
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
 KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
-LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o
+LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o
 MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
 INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
 DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o $(DRIVERS_DIR)/ata.o
@@ -72,6 +73,10 @@ $(LIB_DIR)/vga.o: $(LIB_DIR)/vga.c
 
 $(LIB_DIR)/string.o: $(LIB_DIR)/string.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Assembly-optimized string functions
+$(LIB_DIR)/string_asm.o: $(LIB_DIR)/string_asm.asm
+	$(ASM) $(ASMFLAGS) $< -o $@
 
 # Сборка memory management
 $(MEMORY_DIR)/pmm.o: $(MEMORY_DIR)/pmm.c
