@@ -62,4 +62,22 @@ int fs_exists(const char* path);
 // Get file type
 uint32_t fs_type(const char* path);
 
+// Create directory
+int fs_mkdir(const char* path);
+
+// Remove file or directory
+int fs_remove(const char* path);
+
+// Get current directory (internal structure)
+void* fs_get_current_dir(void);
+
+// Set current directory
+int fs_set_current_dir(void* dir);
+
+// Get current directory path
+void fs_get_current_path(char* path, uint32_t max_len);
+
+// Resolve path to inode (internal, but needed for cd)
+void* fs_resolve_path_export(const char* path);
+
 #endif // FS_H
