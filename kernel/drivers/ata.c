@@ -133,6 +133,12 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
 }
 
 int ata_identify(void) {
+    // Skip ATA identify for now - it can hang if no device
+    // In QEMU without disk, this will hang indefinitely
+    // TODO: Add timeout mechanism
+    return -1; // No device (for now, skip the check)
+    
+    /*
     ata_wait_ready();
     
     // Select master drive
@@ -156,4 +162,5 @@ int ata_identify(void) {
     }
     
     return 0; // Device found
+    */
 }

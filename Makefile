@@ -32,7 +32,7 @@ LIB_SRCS = $(LIB_DIR)/vga.c $(LIB_DIR)/string.c
 MEMORY_SRCS = $(MEMORY_DIR)/pmm.c $(MEMORY_DIR)/paging.c $(MEMORY_DIR)/heap.c
 INTERRUPTS_ASM = $(INTERRUPTS_DIR)/idt.asm
 INTERRUPTS_SRCS = $(INTERRUPTS_DIR)/idt.c $(INTERRUPTS_DIR)/pic.c
-DRIVERS_SRCS = $(DRIVERS_DIR)/timer.c $(DRIVERS_DIR)/keyboard.c $(DRIVERS_DIR)/ata.c
+DRIVERS_SRCS = $(DRIVERS_DIR)/timer.c $(DRIVERS_DIR)/keyboard.c $(DRIVERS_DIR)/serial.c $(DRIVERS_DIR)/ata.c
 TASK_ASM = $(TASK_DIR)/context_switch.asm $(TASK_DIR)/syscall.asm
 TASK_SRCS = $(TASK_DIR)/task.c $(TASK_DIR)/syscall.c
 FS_SRCS = $(FS_DIR)/fs.c
@@ -44,7 +44,7 @@ KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
 LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o
 MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
 INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
-DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/ata.o
+DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o $(DRIVERS_DIR)/ata.o
 TASK_ASM_OBJS = $(TASK_DIR)/context_switch.o $(TASK_DIR)/syscall.o
 TASK_OBJS = $(TASK_DIR)/task.o $(TASK_DIR)/syscall_c.o
 FS_OBJS = $(FS_DIR)/fs.o
@@ -139,9 +139,9 @@ iso: $(KERNEL_BIN)
 run: iso
 	qemu-system-i386 -cdrom $(OS_IMAGE)
 
-# Запуск в QEMU (прямая загрузка kernel)
+# Запуск в QEMU (прямая загрузка kernel с serial port)
 qemu: $(KERNEL_BIN)
-	qemu-system-i386 -kernel $(KERNEL_BIN)
+	qemu-system-i386 -kernel $(KERNEL_BIN) -serial stdio -display none
 
 # Очистка
 clean:

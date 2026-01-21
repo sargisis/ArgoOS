@@ -27,6 +27,9 @@ char keyboard_get_key(void);
 // Check if key is available
 int keyboard_is_key_available(void);
 
+// Polling function (reads keyboard directly, no interrupts needed)
+char keyboard_poll(void);
+
 // Register keyboard callback
 void keyboard_register_callback(keyboard_callback_t callback);
 

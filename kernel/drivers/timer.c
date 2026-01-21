@@ -11,6 +11,7 @@ static timer_callback_t timer_callback = NULL;
 
 // External task scheduler
 extern void task_switch(void);
+extern struct task* task_get_current(void);
 
 // Timer interrupt handler (IRQ 0)
 void timer_handler(void) {
@@ -21,9 +22,16 @@ void timer_handler(void) {
         timer_callback();
     }
     
-    // Trigger task switch every tick (for preemptive multitasking)
-    // In a real OS, we'd check time slices here
-    task_switch();
+    // Trigger task switch only if we have multiple tasks
+    // For now, disable automatic task switching to allow shell to work
+    // TODO: Re-enable when we have proper task management
+    // struct task* current = task_get_current();
+    // if (current != NULL) {
+    //     current->time_slice--;
+    //     if (current->time_slice == 0) {
+    //         task_switch();
+    //     }
+    // }
 }
 
 void timer_init(uint32_t frequency) {

@@ -12,11 +12,15 @@
 #include "pic.h"
 #include "timer.h"
 #include "keyboard.h"
+#include "serial.h"
 #include "task.h"
 #include "syscall.h"
 #include "ata.h"
 #include "fs.h"
 #include "shell.h"
+
+// Forward declaration
+extern char keyboard_scancode_to_ascii(uint8_t scancode);
 
 // Глобальные переменные
 struct multiboot_info* mb_info = 0;
@@ -52,27 +56,33 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     
     // Инициализация драйверов устройств
     vga_puts("Initializing device drivers...\n");
+    serial_init();
+    serial_puts("Serial port initialized (COM1)\n");
+    serial_puts("Initializing device drivers...\n");
     timer_init(TIMER_FREQUENCY);
+    serial_puts("Timer initialized\n");
     keyboard_init();
+    serial_puts("Keyboard driver ready\n");
     
     // Инициализация многозадачности
     vga_puts("Initializing multitasking...\n");
+    serial_puts("Initializing multitasking...\n");
     task_init();
     syscall_init();
+    serial_puts("Multitasking ready\n");
     
     // Инициализация файловой системы
     vga_puts("Initializing file system...\n");
+    serial_puts("Initializing file system...\n");
     ata_init();
+    serial_puts("ATA driver initialized\n");
     fs_init();
+    serial_puts("File system initialized\n");
     
     // Включаем прерывания
     asm volatile("sti");
     vga_puts("Interrupts enabled.\n");
-    vga_puts("Timer initialized at ");
-    vga_putdec(TIMER_FREQUENCY);
-    vga_puts(" Hz\n");
-    vga_puts("Keyboard driver ready.\n");
-    vga_puts("Multitasking ready.\n");
+    serial_puts("Interrupts enabled\n");
     
     // Приветственное сообщение
     vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
@@ -131,14 +141,70 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_puts("System is ready.\n");
     vga_puts("\n");
     
+    // Очистка буфера клавиатуры при старте
+    // Читаем все старые данные из буфера
+    for (int i = 0; i < 10; i++) {
+        uint8_t status;
+        asm volatile("inb %1, %0" : "=a"(status) : "Nd"(0x64));
+        if (status & 0x01) {
+            uint8_t dummy;
+            asm volatile("inb %1, %0" : "=a"(dummy) : "Nd"(0x60));
+            (void)dummy;
+        } else {
+            break;
+        }
+    }
+    
+    // Используем serial port для ввода/вывода
+    serial_puts("\n=== FlowDay-OS Shell (Serial) ===\n");
+    serial_puts("Using serial port for input/output.\n");
+    serial_puts("Type commands here:\n\n");
+    
     // Инициализация shell
     shell_init();
+    serial_puts("Shell initialized\n");
     
-    // Запуск shell (это блокирующий вызов)
-    shell_run();
+    // Основной цикл через serial port
+    char input_line[256] = {0};
+    int input_pos = 0;
     
-    // Этот код никогда не выполнится, но на всякий случай
+    serial_puts("FlowDay-OS> ");
+    
     while (1) {
-        asm volatile("hlt");
+        asm volatile("sti");
+        
+        // Читаем из serial port
+        if (serial_is_data_available()) {
+            char c = serial_getchar();
+            
+            if (c == '\n' || c == '\r') {
+                // Enter - выполняем команду
+                serial_puts("\n");
+                if (input_pos > 0) {
+                    input_line[input_pos] = '\0';
+                    // Выполняем команду через shell
+                    shell_process_command(input_line);
+                    input_pos = 0;
+                    memset(input_line, 0, 256);
+                }
+                serial_puts("FlowDay-OS> ");
+            } else if (c == '\b' || c == 127) {
+                // Backspace
+                if (input_pos > 0) {
+                    input_pos--;
+                    input_line[input_pos] = '\0';
+                    serial_puts("\b \b");
+                }
+            } else if (c >= 32 && c < 127) {
+                // Печатаемый символ
+                if (input_pos < 255) {
+                    input_line[input_pos++] = c;
+                    serial_putchar(c);
+                }
+            }
+        }
+        
+        // Небольшая задержка
+        asm volatile("pause");
     }
 }
