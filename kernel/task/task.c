@@ -7,16 +7,16 @@
 #include "string.h"
 #include "vga.h"
 
-static struct task* task_list = NULL;
-static struct task* current_task = NULL;
-static uint32_t next_task_id = 1;
-static uint32_t task_count = 0;
+struct task* task_list = NULL;
+struct task* current_task = NULL;
+uint32_t next_task_id = 1;
+uint32_t task_count = 0;
 
 // Default time slice (in timer ticks)
 #define DEFAULT_TIME_SLICE 10
 
 // Create kernel stack for task
-static uint32_t create_kernel_stack(void) {
+uint32_t create_kernel_stack(void) {
     // Allocate 4KB for kernel stack
     void* stack_page = pmm_alloc_page();
     if (stack_page == NULL) {

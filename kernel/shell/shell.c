@@ -29,6 +29,9 @@ static int cmd_rm(int argc, char** argv);
 static int cmd_pwd(int argc, char** argv);
 static int cmd_cd(int argc, char** argv);
 static int cmd_touch(int argc, char** argv);
+static int cmd_mv(int argc, char** argv);
+static int cmd_cp(int argc, char** argv);
+static int cmd_find(int argc, char** argv);
 
 void shell_init(void) {
     command_count = 0;
@@ -50,6 +53,9 @@ void shell_init(void) {
     shell_register_command("pwd", "Print working directory", cmd_pwd);
     shell_register_command("cd", "Change directory", cmd_cd);
     shell_register_command("touch", "Create empty file", cmd_touch);
+    shell_register_command("mv", "Move or rename file", cmd_mv);
+    shell_register_command("cp", "Copy file", cmd_cp);
+    shell_register_command("find", "Find files", cmd_find);
 }
 
 void shell_register_command(const char* name, const char* description, command_handler_t handler) {
@@ -508,5 +514,219 @@ static int cmd_touch(int argc, char** argv) {
     }
     
     fs_close(fd);
+    return 0;
+}
+
+static int cmd_mv(int argc, char** argv) {
+    if (argc < 3) {
+        serial_puts("Usage: mv <source> <destination>\n");
+        return -1;
+    }
+    
+    const char* src = argv[1];
+    const char* dst = argv[2];
+    
+    // Check if source exists
+    if (!fs_exists(src)) {
+        serial_puts("Error: Source file not found: ");
+        serial_puts(src);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Check if source is a directory (not supported for now)
+    if (fs_type(src) == FS_TYPE_DIR) {
+        serial_puts("Error: Moving directories not yet supported\n");
+        return -1;
+    }
+    
+    // Open source file
+    int src_fd = fs_open(src, FS_MODE_READ);
+    if (src_fd < 0) {
+        serial_puts("Error: Cannot open source file\n");
+        return -1;
+    }
+    
+    // Get source file size
+    uint32_t file_size = fs_size(src_fd);
+    
+    // Read source file
+    char* buffer = (char*)kmalloc(file_size);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(src_fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(src_fd, buffer, file_size);
+    fs_close(src_fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read source file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    // Create destination file
+    int dst_fd = fs_open(dst, FS_MODE_WRITE);
+    if (dst_fd < 0) {
+        serial_puts("Error: Cannot create destination file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    // Write to destination
+    int32_t bytes_written = fs_write(dst_fd, buffer, file_size);
+    fs_close(dst_fd);
+    kfree(buffer);
+    
+    if (bytes_written < 0 || (uint32_t)bytes_written != file_size) {
+        serial_puts("Error: Cannot write to destination file\n");
+        return -1;
+    }
+    
+    // Remove source file
+    if (fs_remove(src) < 0) {
+        serial_puts("Warning: File copied but source could not be removed\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int cmd_cp(int argc, char** argv) {
+    if (argc < 3) {
+        serial_puts("Usage: cp <source> <destination>\n");
+        return -1;
+    }
+    
+    const char* src = argv[1];
+    const char* dst = argv[2];
+    
+    // Check if source exists
+    if (!fs_exists(src)) {
+        serial_puts("Error: Source file not found: ");
+        serial_puts(src);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    // Check if source is a directory (not supported for now)
+    if (fs_type(src) == FS_TYPE_DIR) {
+        serial_puts("Error: Copying directories not yet supported\n");
+        return -1;
+    }
+    
+    // Open source file
+    int src_fd = fs_open(src, FS_MODE_READ);
+    if (src_fd < 0) {
+        serial_puts("Error: Cannot open source file\n");
+        return -1;
+    }
+    
+    // Get source file size
+    uint32_t file_size = fs_size(src_fd);
+    
+    // Read source file
+    char* buffer = (char*)kmalloc(file_size);
+    if (!buffer) {
+        serial_puts("Error: Out of memory\n");
+        fs_close(src_fd);
+        return -1;
+    }
+    
+    int32_t bytes_read = fs_read(src_fd, buffer, file_size);
+    fs_close(src_fd);
+    
+    if (bytes_read < 0 || (uint32_t)bytes_read != file_size) {
+        serial_puts("Error: Cannot read source file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    // Create destination file
+    int dst_fd = fs_open(dst, FS_MODE_WRITE);
+    if (dst_fd < 0) {
+        serial_puts("Error: Cannot create destination file\n");
+        kfree(buffer);
+        return -1;
+    }
+    
+    // Write to destination
+    int32_t bytes_written = fs_write(dst_fd, buffer, file_size);
+    fs_close(dst_fd);
+    kfree(buffer);
+    
+    if (bytes_written < 0 || (uint32_t)bytes_written != file_size) {
+        serial_puts("Error: Cannot write to destination file\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int cmd_find(int argc, char** argv) {
+    const char* search_path = (argc > 1) ? argv[1] : ".";
+    const char* pattern = (argc > 2) ? argv[2] : NULL;
+    
+    if (!pattern) {
+        serial_puts("Usage: find <path> <pattern>\n");
+        serial_puts("Example: find / file.txt\n");
+        return -1;
+    }
+    
+    // Simple search in specified directory
+    struct dirent entries[64];
+    int count = fs_readdir(search_path, entries, 64);
+    
+    if (count < 0) {
+        serial_puts("Error: Cannot read directory: ");
+        serial_puts(search_path);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    int found = 0;
+    for (int i = 0; i < count; i++) {
+        // Simple pattern matching (exact match for now)
+        if (strcmp(entries[i].name, pattern) == 0) {
+            // Print full path
+            // If search_path is absolute, use it directly
+            if (search_path[0] == '/') {
+                if (strcmp(search_path, "/") != 0) {
+                    serial_puts(search_path);
+                    serial_puts("/");
+                } else {
+                    serial_puts("/");
+                }
+            } else {
+                // Relative path - get current path and append
+                char current_path[256];
+                fs_get_current_path(current_path, 256);
+                
+                if (strcmp(current_path, "/") != 0) {
+                    serial_puts(current_path);
+                    serial_puts("/");
+                }
+                
+                if (strcmp(search_path, ".") != 0) {
+                    serial_puts(search_path);
+                    serial_puts("/");
+                }
+            }
+            serial_puts(entries[i].name);
+            serial_puts("\n");
+            found++;
+        }
+    }
+    
+    if (found == 0) {
+        serial_puts("No files found matching '");
+        serial_puts(pattern);
+        serial_puts("' in ");
+        serial_puts(search_path);
+        serial_puts("\n");
+    }
+    
     return 0;
 }
