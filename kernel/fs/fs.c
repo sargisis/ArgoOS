@@ -6,6 +6,7 @@
 #include "heap.h"
 #include "string.h"
 #include "vga.h"
+#include "serial.h"
 
 #define MAX_FILE_DESCRIPTORS 64
 static struct file_descriptor file_descriptors[MAX_FILE_DESCRIPTORS];
@@ -19,19 +20,26 @@ int fs_init(void) {
         return 0;
     }
     
+    serial_puts("fs_init: Starting...\n");
+    
     // Initialize file descriptors
     for (int i = 0; i < MAX_FILE_DESCRIPTORS; i++) {
         file_descriptors[i].valid = 0;
     }
     
+    serial_puts("fs_init: File descriptors initialized\n");
+    
     // Try to identify ATA device
+    serial_puts("fs_init: Calling ata_identify()...\n");
     if (ata_identify() == 0) {
-        vga_puts("File system: ATA device found\n");
+        serial_puts("File system: ATA device found\n");
     } else {
-        vga_puts("File system: No ATA device (using in-memory FS)\n");
+        serial_puts("File system: No ATA device (using in-memory FS)\n");
     }
     
+    serial_puts("fs_init: Marking as initialized\n");
     fs_initialized = 1;
+    serial_puts("fs_init: Done\n");
     return 0;
 }
 

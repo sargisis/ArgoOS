@@ -91,6 +91,47 @@ void keyboard_init(void) {
     pic_unmask_irq(1);
 }
 
+// Polling функция для чтения клавиатуры (без прерываний)
+char keyboard_poll(void) {
+    uint8_t status;
+    
+    // Проверяем, есть ли данные в буфере клавиатуры
+    asm volatile("inb %1, %0" : "=a"(status) : "Nd"(KEYBOARD_STATUS_PORT));
+    
+    // Если есть данные (бит 0 установлен)
+    if (status & KEYBOARD_STATUS_OUTPUT_FULL) {
+        uint8_t scancode;
+        asm volatile("inb %1, %0" : "=a"(scancode) : "Nd"(KEYBOARD_DATA_PORT));
+        
+        // Обрабатываем scancode (та же логика, что и в keyboard_handler)
+        if (scancode == 0x2A || scancode == 0x36) {
+            shift_pressed = 1;
+            return 0;
+        }
+        
+        if (scancode == 0xAA || scancode == 0xB6) {
+            shift_pressed = 0;
+            return 0;
+        }
+        
+        if (scancode == 0x3A) {
+            caps_lock = !caps_lock;
+            return 0;
+        }
+        
+        // Игнорируем отпускание клавиш
+        if (scancode & 0x80) {
+            return 0;
+        }
+        
+        // Конвертируем в ASCII
+        char character = keyboard_scancode_to_ascii(scancode);
+        return character;
+    }
+    
+    return 0; // Нет данных
+}
+
 char keyboard_get_key(void) {
     if (key_available) {
         key_available = 0;
@@ -100,7 +141,14 @@ char keyboard_get_key(void) {
 }
 
 int keyboard_is_key_available(void) {
-    return key_available;
+    // Используем polling вместо проверки флага
+    char key = keyboard_poll();
+    if (key != 0) {
+        last_key = key;
+        key_available = 1;
+        return 1;
+    }
+    return 0;
 }
 
 void keyboard_register_callback(keyboard_callback_t callback) {

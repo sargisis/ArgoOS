@@ -2,6 +2,7 @@
 
 #include "shell.h"
 #include "vga.h"
+#include "serial.h"
 #include "keyboard.h"
 #include "string.h"
 #include "heap.h"
@@ -119,12 +120,10 @@ int shell_process_command(const char* line) {
     // Find and execute command
     struct shell_command* cmd = shell_get_command(args[0]);
     if (cmd == NULL) {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts("Command not found: ");
-        vga_puts(args[0]);
-        vga_puts("\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-        vga_puts("Type 'help' for available commands.\n");
+        serial_puts("Command not found: ");
+        serial_puts(args[0]);
+        serial_puts("\n");
+        serial_puts("Type 'help' for available commands.\n");
         kfree(line_copy);
         return -1;
     }
@@ -144,6 +143,9 @@ void shell_run(void) {
     vga_puts("Type 'help' for available commands.\n");
     vga_puts("\n");
     
+    // Test output to verify shell is running
+    vga_puts("Shell is ready. Prompt should appear below.\n");
+    
     while (1) {
         // Show prompt
         vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
@@ -154,37 +156,43 @@ void shell_run(void) {
         input_pos = 0;
         memset(input_buffer, 0, SHELL_MAX_LINE_LENGTH);
         
+        // Main input loop - simplified
         while (1) {
-            // Wait for key
-            while (!keyboard_is_key_available()) {
-                asm volatile("hlt");
+            // Ensure interrupts are enabled
+            asm volatile("sti");
+            
+            // Simple busy-wait for keyboard (for testing)
+            // In production, we'd use interrupts properly
+            if (keyboard_is_key_available()) {
+                char key = keyboard_get_key();
+                
+                if (key == '\n' || key == '\r') {
+                    // Execute command
+                    vga_putchar('\n');
+                    if (input_pos > 0) {
+                        shell_process_command(input_buffer);
+                    }
+                    break; // Exit inner loop, show prompt again
+                } else if (key == '\b') {
+                    // Backspace
+                    if (input_pos > 0) {
+                        input_pos--;
+                        input_buffer[input_pos] = '\0';
+                        vga_putchar('\b');
+                        vga_putchar(' ');
+                        vga_putchar('\b');
+                    }
+                } else if (key >= 32 && key < 127) {
+                    // Printable character
+                    if (input_pos < SHELL_MAX_LINE_LENGTH - 1) {
+                        input_buffer[input_pos++] = key;
+                        vga_putchar(key);
+                    }
+                }
             }
             
-            char key = keyboard_get_key();
-            
-            if (key == '\n' || key == '\r') {
-                // Execute command
-                vga_putchar('\n');
-                if (input_pos > 0) {
-                    shell_process_command(input_buffer);
-                }
-                break;
-            } else if (key == '\b') {
-                // Backspace
-                if (input_pos > 0) {
-                    input_pos--;
-                    input_buffer[input_pos] = '\0';
-                    vga_putchar('\b');
-                    vga_putchar(' ');
-                    vga_putchar('\b');
-                }
-            } else if (key >= 32 && key < 127) {
-                // Printable character
-                if (input_pos < SHELL_MAX_LINE_LENGTH - 1) {
-                    input_buffer[input_pos++] = key;
-                    vga_putchar(key);
-                }
-            }
+            // Wait for interrupt (this will wake up on keyboard IRQ)
+            asm volatile("hlt");
         }
     }
 }
@@ -194,18 +202,18 @@ static int cmd_help(int argc, char** argv) {
     (void)argc;
     (void)argv;
     
-    vga_puts("\nAvailable commands:\n");
-    vga_puts("==================\n");
+    serial_puts("\nAvailable commands:\n");
+    serial_puts("==================\n");
     
     for (uint32_t i = 0; i < command_count; i++) {
-        vga_puts("  ");
-        vga_puts(commands[i].name);
-        vga_puts(" - ");
-        vga_puts(commands[i].description);
-        vga_puts("\n");
+        serial_puts("  ");
+        serial_puts(commands[i].name);
+        serial_puts(" - ");
+        serial_puts(commands[i].description);
+        serial_puts("\n");
     }
     
-    vga_puts("\n");
+    serial_puts("\n");
     return 0;
 }
 
@@ -219,12 +227,12 @@ static int cmd_clear(int argc, char** argv) {
 
 static int cmd_echo(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
-        vga_puts(argv[i]);
+        serial_puts(argv[i]);
         if (i < argc - 1) {
-            vga_puts(" ");
+            serial_puts(" ");
         }
     }
-    vga_puts("\n");
+    serial_puts("\n");
     return 0;
 }
 
@@ -237,15 +245,15 @@ static int cmd_time(int argc, char** argv) {
     uint32_t minutes = seconds / 60;
     uint32_t hours = minutes / 60;
     
-    vga_puts("System uptime: ");
-    vga_putdec(hours);
-    vga_puts("h ");
-    vga_putdec(minutes % 60);
-    vga_puts("m ");
-    vga_putdec(seconds % 60);
-    vga_puts("s (");
-    vga_putdec(ms);
-    vga_puts(" ms)\n");
+    serial_puts("System uptime: ");
+    serial_putdec(hours);
+    serial_puts("h ");
+    serial_putdec(minutes % 60);
+    serial_puts("m ");
+    serial_putdec(seconds % 60);
+    serial_puts("s (");
+    serial_putdec(ms);
+    serial_puts(" ms)\n");
     
     return 0;
 }
@@ -261,22 +269,22 @@ static int cmd_meminfo(int argc, char** argv) {
     uint32_t free = pmm_get_free_pages();
     uint32_t used = total - free;
     
-    vga_puts("Memory Information:\n");
-    vga_puts("  Total pages: ");
-    vga_putdec(total);
-    vga_puts(" (");
-    vga_putdec(total * 4);
-    vga_puts(" KB)\n");
-    vga_puts("  Used pages: ");
-    vga_putdec(used);
-    vga_puts(" (");
-    vga_putdec(used * 4);
-    vga_puts(" KB)\n");
-    vga_puts("  Free pages: ");
-    vga_putdec(free);
-    vga_puts(" (");
-    vga_putdec(free * 4);
-    vga_puts(" KB)\n");
+    serial_puts("Memory Information:\n");
+    serial_puts("  Total pages: ");
+    serial_putdec(total);
+    serial_puts(" (");
+    serial_putdec(total * 4);
+    serial_puts(" KB)\n");
+    serial_puts("  Used pages: ");
+    serial_putdec(used);
+    serial_puts(" (");
+    serial_putdec(used * 4);
+    serial_puts(" KB)\n");
+    serial_puts("  Free pages: ");
+    serial_putdec(free);
+    serial_puts(" (");
+    serial_putdec(free * 4);
+    serial_puts(" KB)\n");
     
     return 0;
 }
@@ -285,7 +293,7 @@ static int cmd_reboot(int argc, char** argv) {
     (void)argc;
     (void)argv;
     
-    vga_puts("Rebooting system...\n");
+    serial_puts("Rebooting system...\n");
     
     // Trigger reboot via keyboard controller
     uint8_t temp;
