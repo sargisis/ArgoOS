@@ -7,6 +7,7 @@
 #include "string.h"
 #include "heap.h"
 #include "timer.h"
+#include "fs.h"
 
 #define MAX_COMMANDS 32
 static struct shell_command commands[MAX_COMMANDS];
@@ -21,6 +22,13 @@ static int cmd_echo(int argc, char** argv);
 static int cmd_time(int argc, char** argv);
 static int cmd_meminfo(int argc, char** argv);
 static int cmd_reboot(int argc, char** argv);
+static int cmd_ls(int argc, char** argv);
+static int cmd_cat(int argc, char** argv);
+static int cmd_mkdir(int argc, char** argv);
+static int cmd_rm(int argc, char** argv);
+static int cmd_pwd(int argc, char** argv);
+static int cmd_cd(int argc, char** argv);
+static int cmd_touch(int argc, char** argv);
 
 void shell_init(void) {
     command_count = 0;
@@ -35,6 +43,13 @@ void shell_init(void) {
     shell_register_command("time", "Show system uptime", cmd_time);
     shell_register_command("meminfo", "Show memory information", cmd_meminfo);
     shell_register_command("reboot", "Reboot the system", cmd_reboot);
+    shell_register_command("ls", "List directory contents", cmd_ls);
+    shell_register_command("cat", "Display file contents", cmd_cat);
+    shell_register_command("mkdir", "Create directory", cmd_mkdir);
+    shell_register_command("rm", "Remove file or directory", cmd_rm);
+    shell_register_command("pwd", "Print working directory", cmd_pwd);
+    shell_register_command("cd", "Change directory", cmd_cd);
+    shell_register_command("touch", "Create empty file", cmd_touch);
 }
 
 void shell_register_command(const char* name, const char* description, command_handler_t handler) {
@@ -226,6 +241,44 @@ static int cmd_clear(int argc, char** argv) {
 }
 
 static int cmd_echo(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("\n");
+        return 0;
+    }
+    
+    // Check for redirection (echo "text" > file)
+    int redirect_index = -1;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], ">") == 0 && i + 1 < argc) {
+            redirect_index = i;
+            break;
+        }
+    }
+    
+    if (redirect_index > 0) {
+        // Write to file
+        const char* filename = argv[redirect_index + 1];
+        int fd = fs_open(filename, FS_MODE_WRITE);
+        if (fd < 0) {
+            serial_puts("Error: Cannot create file '");
+            serial_puts(filename);
+            serial_puts("'\n");
+            return -1;
+        }
+        
+        // Write all arguments before ">"
+        for (int i = 1; i < redirect_index; i++) {
+            fs_write(fd, argv[i], strlen(argv[i]));
+            if (i < redirect_index - 1) {
+                fs_write(fd, " ", 1);
+            }
+        }
+        fs_write(fd, "\n", 1);
+        fs_close(fd);
+        return 0;
+    }
+    
+    // Normal echo - just print
     for (int i = 1; i < argc; i++) {
         serial_puts(argv[i]);
         if (i < argc - 1) {
@@ -306,5 +359,154 @@ static int cmd_reboot(int argc, char** argv) {
     // If that doesn't work, triple fault
     asm volatile("int $0xFF");
     
+    return 0;
+}
+
+static int cmd_ls(int argc, char** argv) {
+    const char* path = (argc > 1) ? argv[1] : ".";
+    
+    struct dirent entries[64];
+    int count = fs_readdir(path, entries, 64);
+    
+    if (count < 0) {
+        serial_puts("Error: Cannot read directory\n");
+        return -1;
+    }
+    
+    if (count == 0) {
+        serial_puts("(empty)\n");
+        return 0;
+    }
+    
+    for (int i = 0; i < count; i++) {
+        if (entries[i].type == FS_TYPE_DIR) {
+            serial_puts("[");
+            serial_puts(entries[i].name);
+            serial_puts("]");
+        } else {
+            serial_puts(entries[i].name);
+            serial_puts(" (");
+            serial_putdec(entries[i].size);
+            serial_puts(" bytes)");
+        }
+        serial_puts("\n");
+    }
+    
+    return 0;
+}
+
+static int cmd_cat(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: cat <file>\n");
+        return -1;
+    }
+    
+    int fd = fs_open(argv[1], FS_MODE_READ);
+    if (fd < 0) {
+        serial_puts("Error: Cannot open file '");
+        serial_puts(argv[1]);
+        serial_puts("'\n");
+        return -1;
+    }
+    
+    char buffer[256];
+    int32_t bytes_read;
+    
+    while ((bytes_read = fs_read(fd, buffer, 255)) > 0) {
+        buffer[bytes_read] = '\0';
+        serial_puts(buffer);
+    }
+    
+    serial_puts("\n");
+    fs_close(fd);
+    return 0;
+}
+
+static int cmd_mkdir(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: mkdir <directory>\n");
+        return -1;
+    }
+    
+    if (fs_mkdir(argv[1]) < 0) {
+        serial_puts("Error: Cannot create directory '");
+        serial_puts(argv[1]);
+        serial_puts("'\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int cmd_rm(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: rm <file|directory>\n");
+        return -1;
+    }
+    
+    if (fs_remove(argv[1]) < 0) {
+        serial_puts("Error: Cannot remove '");
+        serial_puts(argv[1]);
+        serial_puts("'\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int cmd_pwd(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+    
+    char path[256];
+    fs_get_current_path(path, 256);
+    serial_puts(path);
+    serial_puts("\n");
+    return 0;
+}
+
+static int cmd_cd(int argc, char** argv) {
+    const char* path = (argc > 1) ? argv[1] : "/";
+    
+    // Resolve path
+    void* dir = fs_resolve_path_export(path);
+    if (!dir) {
+        serial_puts("Error: Directory not found: ");
+        serial_puts(path);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    if (fs_type(path) != FS_TYPE_DIR) {
+        serial_puts("Error: Not a directory: ");
+        serial_puts(path);
+        serial_puts("\n");
+        return -1;
+    }
+    
+    if (fs_set_current_dir(dir) < 0) {
+        serial_puts("Error: Cannot change directory\n");
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int cmd_touch(int argc, char** argv) {
+    if (argc < 2) {
+        serial_puts("Usage: touch <file>\n");
+        return -1;
+    }
+    
+    // Create or update file timestamp (for now, just create empty file)
+    int fd = fs_open(argv[1], FS_MODE_WRITE);
+    if (fd < 0) {
+        serial_puts("Error: Cannot create file '");
+        serial_puts(argv[1]);
+        serial_puts("'\n");
+        return -1;
+    }
+    
+    fs_close(fd);
     return 0;
 }
