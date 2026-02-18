@@ -20,6 +20,8 @@ A minimalistic operating system written from scratch in C and x86 assembly.
 - ✅ Minimalism and speed
 - ✅ Deep hardware understanding
 
+- 
+
 ## Requirements
 
 - `nasm` - assembler
