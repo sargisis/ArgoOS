@@ -35,7 +35,7 @@ INTERRUPTS_ASM = $(INTERRUPTS_DIR)/idt.asm
 INTERRUPTS_SRCS = $(INTERRUPTS_DIR)/idt.c $(INTERRUPTS_DIR)/pic.c
 DRIVERS_SRCS = $(DRIVERS_DIR)/timer.c $(DRIVERS_DIR)/keyboard.c $(DRIVERS_DIR)/serial.c $(DRIVERS_DIR)/ata.c
 TASK_ASM = $(TASK_DIR)/context_switch.asm $(TASK_DIR)/syscall.asm
-TASK_SRCS = $(TASK_DIR)/task.c $(TASK_DIR)/syscall.c
+TASK_SRCS = $(TASK_DIR)/task.c $(TASK_DIR)/syscall.c $(TASK_DIR)/sync.c
 FS_SRCS = $(FS_DIR)/fs.c $(FS_DIR)/elf_loader.c
 SHELL_SRCS = $(SHELL_DIR)/shell.c
 
@@ -46,8 +46,8 @@ LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o
 MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
 INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
 DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o $(DRIVERS_DIR)/ata.o
-TASK_ASM_OBJS = $(TASK_DIR)/context_switch.o $(TASK_DIR)/syscall.o
-TASK_OBJS = $(TASK_DIR)/task.o $(TASK_DIR)/syscall_c.o
+TASK_ASM_OBJS = $(TASK_DIR)/context_switch.o $(TASK_DIR)/syscall.o $(TASK_DIR)/task_entry.o
+TASK_OBJS = $(TASK_DIR)/task.o $(TASK_DIR)/syscall_c.o $(TASK_DIR)/sync.o
 FS_OBJS = $(FS_DIR)/fs.o $(FS_DIR)/elf_loader.o
 SHELL_OBJS = $(SHELL_DIR)/shell.o
 
@@ -116,10 +116,16 @@ $(TASK_DIR)/context_switch.o: $(TASK_DIR)/context_switch.asm
 $(TASK_DIR)/syscall.o: $(TASK_DIR)/syscall.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
+$(TASK_DIR)/task_entry.o: $(TASK_DIR)/task_entry.asm
+	$(ASM) $(ASMFLAGS) $< -o $@
+
 $(TASK_DIR)/task.o: $(TASK_DIR)/task.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TASK_DIR)/syscall_c.o: $(TASK_DIR)/syscall.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TASK_DIR)/sync.o: $(TASK_DIR)/sync.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Сборка file system
