@@ -159,6 +159,24 @@ void graphics_clear(uint32_t color) {
     }
 }
 
+void graphics_draw_char(int x, int y, char c, uint32_t color) {
+    if ((uint8_t)c >= 128) return;
+    for (int j = 0; j < 8; j++) {
+        for (int i = 0; i < 8; i++) {
+            if (font8x8_basic[(uint8_t)c][j] & (1 << i)) {
+                graphics_put_pixel(x + i, y + j, color);
+            }
+        }
+    }
+}
+
+void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
+    while (*str) {
+        graphics_draw_char(x, y, *str++, color);
+        x += 8;
+    }
+}
+
 int graphics_get_width(void) { return screen_width; }
 int graphics_get_height(void) { return screen_height; }
 

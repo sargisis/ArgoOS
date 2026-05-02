@@ -2,7 +2,7 @@
 
 #include "idt.h"
 #include "pic.h"
-#include "panic.h"
+#include "printf.h"
 #include "vga.h"
 #include "string.h"
 
@@ -128,27 +128,17 @@ void idt_init(void) {
 // Обработчик исключений
 void isr_handler(uint32_t int_no, uint32_t err_code) {
     (void)err_code;
+    kprintf("\n!!! EXCEPTION !!!\n");
+    kprintf("Exception #%d: ", int_no);
+    
     if (int_no < 32) {
-        // Prepare detailed error message
-        char msg[128];
-        strcpy(msg, "CPU Exception: ");
-        strcat(msg, exception_messages[int_no]);
-        
-        if (int_no == 14) { // Page Fault
-            uint32_t fault_addr;
-            asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
-            strcat(msg, " at 0x");
-            // Simple hex to string for panic msg
-            char hex[9];
-            for (int i = 0; i < 8; i++) {
-                int nibble = (fault_addr >> ((7 - i) * 4)) & 0xF;
-                hex[i] = (nibble < 10) ? ('0' + nibble) : ('A' + nibble - 10);
-            }
-            hex[8] = '\0';
-            strcat(msg, hex);
-        }
-        
-        PANIC(msg);
+        kprintf("%s\n", exception_messages[int_no]);
+    } else {
+        kprintf("Unknown Exception\n");
+    }
+    
+    if (err_code != 0) {
+        kprintf("Error Code: 0x%x\n", err_code);
     }
 }
 
