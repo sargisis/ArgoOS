@@ -3,6 +3,8 @@
 
 #include "kernel.h"
 #include "multiboot.h"
+#include "gdt.h"
+#include "panic.h"
 #include "vga.h"
 #include "graphics.h"
 #include "string.h"
@@ -29,15 +31,14 @@ struct multiboot_info* mb_info = 0;
 void kernel_main(unsigned long magic, unsigned long addr) {
     // Проверка Multiboot magic number
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        vga_clear();
-        vga_puts("ERROR: Invalid Multiboot magic number: 0x");
-        vga_puthex(magic);
-        vga_puts("\n");
-        return;
+        PANIC("Invalid Multiboot magic number");
     }
     
     // Сохраняем указатель на multiboot info
     mb_info = (struct multiboot_info*)addr;
+    
+    // Инициализация базовых структур CPU
+    gdt_init();
     
     // Инициализация VGA (остается для совместимости)
     vga_init();
@@ -97,6 +98,10 @@ void kernel_main(unsigned long magic, unsigned long addr) {
         
         // 3. Кнопка "Пуск" (ArgOS Logo)
         graphics_draw_rect(10, sh - 35, 60, 30, COLOR_CYAN);
+        graphics_draw_string(18, sh - 30, "ArgOS", 0x000000);
+        
+        // Часы на панели задач
+        graphics_draw_string(sw - 60, sh - 28, "04:30", COLOR_WHITE);
         
         // 4. Главное окно по центру
         int win_w = 400;
@@ -110,8 +115,17 @@ void kernel_main(unsigned long magic, unsigned long addr) {
         graphics_draw_rect(win_x, win_y, win_w, win_h, 0x222233);
         // Заголовок окна
         graphics_draw_rect(win_x, win_y, win_w, 25, 0x333355);
-        // Кнопка закрытия окна (Красная)
+        graphics_draw_string(win_x + 8, win_y + 5, "Welcome to ArgOS", COLOR_WHITE);
+        // Кнопка закрытия окна
         graphics_draw_rect(win_x + win_w - 25, win_y + 5, 15, 15, COLOR_RED);
+        graphics_draw_string(win_x + win_w - 22, win_y + 5, "X", COLOR_WHITE);
+        
+        // Текст внутри окна
+        graphics_draw_string(win_x + 20, win_y + 50, "ArgOS Kernel v0.1", COLOR_CYAN);
+        graphics_draw_string(win_x + 20, win_y + 80, "Graphics: 800x600 32-bit", COLOR_GREEN);
+        graphics_draw_string(win_x + 20, win_y + 110, "Status: Running", COLOR_GREEN);
+        graphics_draw_string(win_x + 20, win_y + 150, "Your own Operating System!", 0xAAAAFF);
+        graphics_draw_string(win_x + 20, win_y + 180, "Built from scratch in C.", 0x888899);
         
         serial_puts("GUI rendered!\n");
     }

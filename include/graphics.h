@@ -20,6 +20,8 @@ void graphics_init(struct multiboot_info* mb_info);
 void graphics_put_pixel(int x, int y, uint32_t color);
 void graphics_draw_rect(int x, int y, int width, int height, uint32_t color);
 void graphics_clear(uint32_t color);
+void graphics_draw_char(int x, int y, char c, uint32_t color);
+void graphics_draw_string(int x, int y, const char* str, uint32_t color);
 int graphics_get_width(void);
 int graphics_get_height(void);
 
