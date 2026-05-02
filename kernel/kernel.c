@@ -5,6 +5,7 @@
 #include "multiboot.h"
 #include "gdt.h"
 #include "panic.h"
+#include "printf.h"
 #include "vga.h"
 #include "graphics.h"
 #include "string.h"
@@ -45,41 +46,41 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_clear();
     
     // Инициализация управления памятью
-    vga_puts("Initializing memory management...\n");
+    kprintf("Initializing memory management...\n");
     pmm_init(mb_info);
     paging_init();
     heap_init();
     
     // Инициализация прерываний
-    vga_puts("Initializing interrupts...\n");
+    kprintf("Initializing interrupts...\n");
     idt_init();
     pic_init();
     
     // Инициализация драйверов устройств
-    vga_puts("Initializing device drivers...\n");
+    kprintf("Initializing device drivers...\n");
     serial_init();
-    serial_puts("Serial port initialized (COM1)\n");
+    kprintf("Serial port initialized (COM1)\n");
     timer_init(TIMER_FREQUENCY);
-    serial_puts("Timer initialized\n");
+    kprintf("Timer initialized at %d Hz\n", TIMER_FREQUENCY);
     keyboard_init();
-    serial_puts("Keyboard driver ready\n");
+    kprintf("Keyboard driver ready\n");
     
     // Инициализация графики (ПОСЛЕ paging!)
     graphics_init(mb_info);
-    serial_puts("Graphics initialized\n");
+    kprintf("Graphics initialized\n");
     
     // Инициализация многозадачности
-    serial_puts("Initializing multitasking...\n");
+    kprintf("Initializing multitasking...\n");
     task_init();
     syscall_init();
-    serial_puts("Multitasking ready\n");
+    kprintf("Multitasking ready (Round-robin)\n");
     
     // Инициализация файловой системы
-    serial_puts("Initializing file system...\n");
+    kprintf("Initializing file system...\n");
     ata_init();
-    serial_puts("ATA driver initialized\n");
+    kprintf("ATA driver initialized\n");
     fs_init();
-    serial_puts("File system initialized\n");
+    kprintf("File system initialized\n");
     
     // Включаем прерывания
     asm volatile("sti");

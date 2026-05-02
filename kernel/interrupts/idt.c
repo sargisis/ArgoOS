@@ -2,6 +2,7 @@
 
 #include "idt.h"
 #include "pic.h"
+#include "panic.h"
 #include "vga.h"
 #include "string.h"
 
@@ -126,6 +127,7 @@ void idt_init(void) {
 
 // Обработчик исключений
 void isr_handler(uint32_t int_no, uint32_t err_code) {
+    (void)err_code;
     if (int_no < 32) {
         // Prepare detailed error message
         char msg[128];

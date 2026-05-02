@@ -42,7 +42,7 @@ SHELL_SRCS = $(SHELL_DIR)/shell.c
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
 KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
-LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o $(LIB_DIR)/font.o $(LIB_DIR)/panic.o
+LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o $(LIB_DIR)/font.o $(LIB_DIR)/panic.o $(LIB_DIR)/printf.o
 MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o $(MEMORY_DIR)/gdt.o $(MEMORY_DIR)/gdt_asm.o
 INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
 DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o $(DRIVERS_DIR)/ata.o $(DRIVERS_DIR)/graphics.o
@@ -83,6 +83,9 @@ $(LIB_DIR)/font.o: $(LIB_DIR)/font.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIB_DIR)/panic.o: $(LIB_DIR)/panic.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(LIB_DIR)/printf.o: $(LIB_DIR)/printf.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Сборка memory management
