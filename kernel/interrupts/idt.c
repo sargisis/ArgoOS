@@ -2,6 +2,7 @@
 
 #include "idt.h"
 #include "pic.h"
+#include "printf.h"
 #include "vga.h"
 #include "string.h"
 
@@ -126,21 +127,18 @@ void idt_init(void) {
 
 // Обработчик исключений
 void isr_handler(uint32_t int_no, uint32_t err_code) {
-    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-    vga_puts("\n!!! EXCEPTION !!!\n");
-    vga_puts("Exception #");
-    vga_putdec(int_no);
-    vga_puts(": ");
+    (void)err_code;
+    kprintf("\n!!! EXCEPTION !!!\n");
+    kprintf("Exception #%d: ", int_no);
     
     if (int_no < 32) {
-        vga_puts(exception_messages[int_no]);
+        kprintf("%s\n", exception_messages[int_no]);
     } else {
-        vga_puts("Unknown Exception");
+        kprintf("Unknown Exception\n");
     }
     
     if (err_code != 0) {
-        vga_puts("\nError Code: 0x");
-        vga_puthex(err_code);
+        kprintf("Error Code: 0x%x\n", err_code);
     }
     
     vga_puts("\n");

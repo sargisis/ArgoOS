@@ -1,6 +1,7 @@
 #include "graphics.h"
 #include "serial.h"
 #include "paging.h"
+#include "font.h"
 
 // Bochs VGA Extensions (BGA) - works in QEMU with -vga std
 #define BGA_INDEX_PORT  0x01CE
@@ -143,6 +144,24 @@ void graphics_clear(uint32_t color) {
     int total = screen_width * screen_height;
     for (int i = 0; i < total; i++) {
         framebuffer[i] = color;
+    }
+}
+
+void graphics_draw_char(int x, int y, char c, uint32_t color) {
+    if ((uint8_t)c >= 128) return;
+    for (int j = 0; j < 8; j++) {
+        for (int i = 0; i < 8; i++) {
+            if (font8x8_basic[(uint8_t)c][j] & (1 << i)) {
+                graphics_put_pixel(x + i, y + j, color);
+            }
+        }
+    }
+}
+
+void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
+    while (*str) {
+        graphics_draw_char(x, y, *str++, color);
+        x += 8;
     }
 }
 

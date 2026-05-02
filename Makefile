@@ -25,158 +25,120 @@ FS_DIR = $(KERNEL_DIR)/fs
 SHELL_DIR = $(KERNEL_DIR)/shell
 INCLUDE_DIR = include
 
-# Исходные файлы
-BOOT_SRC = $(BOOT_DIR)/multiboot.asm
-KERNEL_SRC = $(KERNEL_DIR)/kernel.c
-LIB_SRCS = $(LIB_DIR)/vga.c $(LIB_DIR)/string.c
-LIB_ASM = $(LIB_DIR)/string_asm.asm
-MEMORY_SRCS = $(MEMORY_DIR)/pmm.c $(MEMORY_DIR)/paging.c $(MEMORY_DIR)/heap.c
-INTERRUPTS_ASM = $(INTERRUPTS_DIR)/idt.asm
-INTERRUPTS_SRCS = $(INTERRUPTS_DIR)/idt.c $(INTERRUPTS_DIR)/pic.c
-DRIVERS_SRCS = $(DRIVERS_DIR)/timer.c $(DRIVERS_DIR)/keyboard.c $(DRIVERS_DIR)/serial.c $(DRIVERS_DIR)/ata.c $(DRIVERS_DIR)/graphics.c
-TASK_ASM = $(TASK_DIR)/context_switch.asm $(TASK_DIR)/syscall.asm
-TASK_SRCS = $(TASK_DIR)/task.c $(TASK_DIR)/syscall.c $(TASK_DIR)/sync.c
-FS_SRCS = $(FS_DIR)/fs.c $(FS_DIR)/elf_loader.c
-SHELL_SRCS = $(SHELL_DIR)/shell.c
-
 # Объектные файлы
 BOOT_OBJ = $(BOOT_DIR)/multiboot.o
 KERNEL_OBJ = $(KERNEL_DIR)/kernel.o
-LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o
-MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o
+LIB_OBJS = $(LIB_DIR)/vga.o $(LIB_DIR)/string.o $(LIB_DIR)/string_asm.o \
+           $(LIB_DIR)/font.o $(LIB_DIR)/panic.o $(LIB_DIR)/printf.o
+MEMORY_OBJS = $(MEMORY_DIR)/pmm.o $(MEMORY_DIR)/paging.o $(MEMORY_DIR)/heap.o \
+              $(MEMORY_DIR)/gdt.o $(MEMORY_DIR)/gdt_asm.o
 INTERRUPTS_OBJS = $(INTERRUPTS_DIR)/idt.o $(INTERRUPTS_DIR)/idt_c.o $(INTERRUPTS_DIR)/pic.o
-DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o $(DRIVERS_DIR)/ata.o $(DRIVERS_DIR)/graphics.o
+DRIVERS_OBJS = $(DRIVERS_DIR)/timer.o $(DRIVERS_DIR)/keyboard.o $(DRIVERS_DIR)/serial.o \
+                $(DRIVERS_DIR)/ata.o $(DRIVERS_DIR)/graphics.o
 TASK_ASM_OBJS = $(TASK_DIR)/context_switch.o $(TASK_DIR)/syscall.o $(TASK_DIR)/task_entry.o
 TASK_OBJS = $(TASK_DIR)/task.o $(TASK_DIR)/syscall_c.o $(TASK_DIR)/sync.o
 FS_OBJS = $(FS_DIR)/fs.o $(FS_DIR)/elf_loader.o
 SHELL_OBJS = $(SHELL_DIR)/shell.o
+CPU_OBJS = $(KERNEL_DIR)/cpu/fpu.o
 
 # Итоговый образ
 KERNEL_BIN = kernel.bin
 OS_IMAGE = flowday-os.iso
-DISK_IMG = disk.img
 
-.PHONY: all clean run qemu qemu-bridge qemu-disk qemu-disk-bridge iso disk
+.PHONY: all clean run qemu iso
 
 all: $(KERNEL_BIN)
 
-# Сборка bootloader (Multiboot entry point)
-$(BOOT_OBJ): $(BOOT_SRC)
+$(BOOT_OBJ): $(BOOT_DIR)/multiboot.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
-# Сборка kernel
-$(KERNEL_OBJ): $(KERNEL_SRC)
+$(KERNEL_OBJ): $(KERNEL_DIR)/kernel.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Сборка библиотек
+# LIB rules
 $(LIB_DIR)/vga.o: $(LIB_DIR)/vga.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(LIB_DIR)/string.o: $(LIB_DIR)/string.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Assembly-optimized string functions
 $(LIB_DIR)/string_asm.o: $(LIB_DIR)/string_asm.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
+$(LIB_DIR)/font.o: $(LIB_DIR)/font.c
+	$(CC) $(CFLAGS) -c $< -o $@
+$(LIB_DIR)/panic.o: $(LIB_DIR)/panic.c
+	$(CC) $(CFLAGS) -c $< -o $@
+$(LIB_DIR)/printf.o: $(LIB_DIR)/printf.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# Сборка memory management
+# MEMORY rules
 $(MEMORY_DIR)/pmm.o: $(MEMORY_DIR)/pmm.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(MEMORY_DIR)/paging.o: $(MEMORY_DIR)/paging.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(MEMORY_DIR)/heap.o: $(MEMORY_DIR)/heap.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Сборка interrupts
-$(INTERRUPTS_DIR)/idt.o: $(INTERRUPTS_ASM)
+$(MEMORY_DIR)/gdt.o: $(MEMORY_DIR)/gdt.c
+	$(CC) $(CFLAGS) -c $< -o $@
+$(MEMORY_DIR)/gdt_asm.o: $(MEMORY_DIR)/gdt_asm.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
+# INTERRUPTS rules
+$(INTERRUPTS_DIR)/idt.o: $(INTERRUPTS_DIR)/idt.asm
+	$(ASM) $(ASMFLAGS) $< -o $@
 $(INTERRUPTS_DIR)/idt_c.o: $(INTERRUPTS_DIR)/idt.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(INTERRUPTS_DIR)/pic.o: $(INTERRUPTS_DIR)/pic.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Сборка drivers
+# DRIVERS rules
 $(DRIVERS_DIR)/timer.o: $(DRIVERS_DIR)/timer.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(DRIVERS_DIR)/keyboard.o: $(DRIVERS_DIR)/keyboard.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
+$(DRIVERS_DIR)/serial.o: $(DRIVERS_DIR)/serial.c
+	$(CC) $(CFLAGS) -I./include -c $< -o $@
 $(DRIVERS_DIR)/ata.o: $(DRIVERS_DIR)/ata.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(DRIVERS_DIR)/graphics.o: $(DRIVERS_DIR)/graphics.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Сборка task management
+# TASK rules
 $(TASK_DIR)/context_switch.o: $(TASK_DIR)/context_switch.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
-
 $(TASK_DIR)/syscall.o: $(TASK_DIR)/syscall.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
-
 $(TASK_DIR)/task_entry.o: $(TASK_DIR)/task_entry.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
-
 $(TASK_DIR)/task.o: $(TASK_DIR)/task.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(TASK_DIR)/syscall_c.o: $(TASK_DIR)/syscall.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
 $(TASK_DIR)/sync.o: $(TASK_DIR)/sync.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Сборка file system
+# OTHER rules
 $(FS_DIR)/fs.o: $(FS_DIR)/fs.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Сборка shell
+$(FS_DIR)/elf_loader.o: $(FS_DIR)/elf_loader.c
+	$(CC) $(CFLAGS) -c $< -o $@
 $(SHELL_DIR)/shell.o: $(SHELL_DIR)/shell.c
+	$(CC) $(CFLAGS) -c $< -o $@
+$(KERNEL_DIR)/cpu/fpu.o: $(KERNEL_DIR)/cpu/fpu.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Линковка kernel
-$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS)
+$(KERNEL_BIN): $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(CPU_OBJS)
 	$(LD) $(LDFLAGS) $^ -o $@
 
-# Создание ISO образа (для загрузки через GRUB)
 iso: $(KERNEL_BIN)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL_BIN) isodir/boot/
-	cp grub.cfg isodir/boot/grub/
+	cp boot/grub.cfg isodir/boot/grub/ 2>/dev/null || true
 	grub-mkrescue -o $(OS_IMAGE) isodir
 
-# Запуск в QEMU (с ISO)
-run: iso
-	qemu-system-i386 -cdrom $(OS_IMAGE)
-
-# Запуск в QEMU (прямая загрузка kernel с serial port)
 qemu: $(KERNEL_BIN)
-	qemu-system-i386 -kernel $(KERNEL_BIN) -vga std -serial stdio
+	qemu-system-i386 -kernel kernel.bin -vga std -serial stdio
 
-# Создание диска для файловой системы
-disk: $(DISK_IMG)
-
-$(DISK_IMG):
-	dd if=/dev/zero of=$(DISK_IMG) bs=1M count=10 2>/dev/null || \
-	qemu-img create -f raw $(DISK_IMG) 10M
-
-# Запуск в QEMU с диском (для сохранения файловой системы)
-qemu-disk: $(KERNEL_BIN) $(DISK_IMG)
-	qemu-system-i386 -kernel $(KERNEL_BIN) -hda $(DISK_IMG) -serial stdio
-
-# Запуск в QEMU с TCP мостом (для интеграции с платформой)
-qemu-bridge: $(KERNEL_BIN)
-	qemu-system-i386 -kernel $(KERNEL_BIN) -serial tcp:127.0.0.1:4444,server
-
-qemu-disk-bridge: $(KERNEL_BIN) $(DISK_IMG)
-	qemu-system-i386 -kernel $(KERNEL_BIN) -hda $(DISK_IMG) -serial tcp:127.0.0.1:4444,server
-
-# Очистка
 clean:
-	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(KERNEL_BIN) $(OS_IMAGE) $(DISK_IMG)
+	rm -f $(BOOT_OBJ) $(KERNEL_OBJ) $(LIB_OBJS) $(MEMORY_OBJS) $(INTERRUPTS_OBJS) $(DRIVERS_OBJS) $(TASK_ASM_OBJS) $(TASK_OBJS) $(FS_OBJS) $(SHELL_OBJS) $(CPU_OBJS)
+	rm -f kernel.bin $(OS_IMAGE)
 	rm -rf isodir

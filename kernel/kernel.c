@@ -3,15 +3,17 @@
 
 #include "kernel.h"
 #include "multiboot.h"
-#include "vga.h"
-#include "graphics.h"
+#include "gdt.h"
+#include "cpu.h"
+#include "panic.h"
+#include "printf.h"
 #include "string.h"
 #include "pmm.h"
 #include "paging.h"
 #include "heap.h"
 #include "idt.h"
 #include "pic.h"
-#include "timer.h"
+#include "vga.h"
 #include "keyboard.h"
 #include "serial.h"
 #include "task.h"
@@ -19,6 +21,8 @@
 #include "ata.h"
 #include "fs.h"
 #include "shell.h"
+#include "graphics.h"
+#include "timer.h"
 
 // Forward declaration
 extern char keyboard_scancode_to_ascii(uint8_t scancode);
@@ -27,110 +31,105 @@ extern char keyboard_scancode_to_ascii(uint8_t scancode);
 struct multiboot_info* mb_info = 0;
 
 void kernel_main(unsigned long magic, unsigned long addr) {
-    // Проверка Multiboot magic number
+    // 1. Сразу инициализируем базовый вывод (VGA и Serial) для логов
+    vga_init();
+    vga_clear();
+    serial_init();
+
+    // 2. Проверка Multiboot magic number
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        vga_clear();
-        vga_puts("ERROR: Invalid Multiboot magic number: 0x");
-        vga_puthex(magic);
-        vga_puts("\n");
-        return;
+        kprintf("ERROR: Invalid Multiboot magic number: 0x%x\n", magic);
+        PANIC("Invalid Multiboot magic number");
     }
     
     // Сохраняем указатель на multiboot info
     mb_info = (struct multiboot_info*)addr;
     
-    // Инициализация VGA (остается для совместимости)
-    vga_init();
-    vga_clear();
+    // 3. Инициализация архитектуры CPU (GDT, FPU)
+    gdt_init();
+    cpu_init_fpu();
     
-    // Инициализация управления памятью
-    vga_puts("Initializing memory management...\n");
+    // 4. Инициализация управления памятью
+    kprintf("Initializing memory management...\n");
     pmm_init(mb_info);
     paging_init();
     heap_init();
     
-    // Инициализация прерываний
-    vga_puts("Initializing interrupts...\n");
+    // 5. Инициализация прерываний
+    kprintf("Initializing interrupts (IDT/PIC)...\n");
     idt_init();
     pic_init();
     
-    // Инициализация драйверов устройств
-    vga_puts("Initializing device drivers...\n");
-    serial_init();
-    serial_puts("Serial port initialized (COM1)\n");
+    // 6. Инициализация драйверов устройств
+    kprintf("Initializing device drivers...\n");
     timer_init(TIMER_FREQUENCY);
-    serial_puts("Timer initialized\n");
+    kprintf("Timer initialized at %d Hz\n", TIMER_FREQUENCY);
     keyboard_init();
-    serial_puts("Keyboard driver ready\n");
+    kprintf("Keyboard driver ready\n");
     
-    // Инициализация графики (ПОСЛЕ paging!)
+    // 7. Инициализация графики (ПОСЛЕ paging!)
     graphics_init(mb_info);
-    serial_puts("Graphics initialized\n");
+    kprintf("Graphics system initialized\n");
     
-    // Инициализация многозадачности
-    serial_puts("Initializing multitasking...\n");
+    // 8. Инициализация многозадачности
+    kprintf("Initializing multitasking...\n");
     task_init();
     syscall_init();
-    serial_puts("Multitasking ready\n");
+    kprintf("Multitasking ready (Round-robin)\n");
     
-    // Инициализация файловой системы
-    serial_puts("Initializing file system...\n");
+    // 9. Инициализация файловой системы
+    kprintf("Initializing file system...\n");
     ata_init();
-    serial_puts("ATA driver initialized\n");
     fs_init();
-    serial_puts("File system initialized\n");
+    kprintf("File system ready\n");
     
-    // Включаем прерывания
+    // 10. Включаем прерывания
     asm volatile("sti");
-    serial_puts("Interrupts enabled\n");
+    kprintf("Interrupts enabled. Kernel is fully operational.\n");
     
-    // Рисуем графический интерфейс (GUI)
+    // 11. Рисуем графический интерфейс (GUI)
     int sw = graphics_get_width();
     int sh = graphics_get_height();
     
     if (sw > 0 && sh > 0) {
-        // 1. Обои рабочего стола (Темный космос)
+        // Обои рабочего стола (Темный космос)
         graphics_clear(COLOR_DARK_BG);
         
-        // 2. Панель задач снизу (Taskbar)
+        // Панель задач снизу (Taskbar)
         graphics_draw_rect(0, sh - 40, sw, 40, 0x111111);
         
-        // 3. Кнопка "Пуск" (ArgOS Logo)
+        // Кнопка "Пуск" (ArgOS Logo)
         graphics_draw_rect(10, sh - 35, 60, 30, COLOR_CYAN);
+        graphics_draw_string(18, sh - 30, "ArgOS", 0x000000);
         
-        // 4. Главное окно по центру
+        // Часы на панели задач
+        graphics_draw_string(sw - 60, sh - 28, "19:47", COLOR_WHITE);
+        
+        // Главное окно
         int win_w = 400;
         int win_h = 300;
         int win_x = (sw - win_w) / 2;
         int win_y = (sh - win_h) / 2;
         
-        // Тень окна
-        graphics_draw_rect(win_x + 5, win_y + 5, win_w, win_h, 0x0A0A15);
-        // Фон окна
         graphics_draw_rect(win_x, win_y, win_w, win_h, 0x222233);
-        // Заголовок окна
         graphics_draw_rect(win_x, win_y, win_w, 25, 0x333355);
-        // Кнопка закрытия окна (Красная)
-        graphics_draw_rect(win_x + win_w - 25, win_y + 5, 15, 15, COLOR_RED);
+        graphics_draw_string(win_x + 8, win_y + 5, "Welcome to ArgOS", COLOR_WHITE);
         
-        serial_puts("GUI rendered!\n");
+        graphics_draw_string(win_x + 20, win_y + 50, "ArgOS Kernel v0.1", COLOR_CYAN);
+        graphics_draw_string(win_x + 20, win_y + 80, "Graphics: 800x600 32-bit", COLOR_GREEN);
+        graphics_draw_string(win_x + 20, win_y + 110, "FPU/SSE: Enabled", COLOR_GREEN);
+        
+        kprintf("GUI rendered successfully\n");
     }
     
-    // Телеметрия
-    serial_puts("\n[TELEMETRY] {\"system\": \"ArgOS\", \"status\": \"online\", \"version\": \"0.1\"}\n");
-    
     // Shell через serial port
-    serial_puts("\n=== ArgOS Shell (Serial) ===\n");
-    serial_puts("Type commands here:\n\n");
-    
+    kprintf("\n=== ArgOS Shell (Serial) ===\n");
     shell_init();
-    serial_puts("Shell initialized\n");
     
-    // Основной цикл через serial port
     char input_line[256] = {0};
     int input_pos = 0;
     
-    serial_puts("ArgOS> ");
+    kprintf("ArgOS> ");
     
     while (1) {
         asm volatile("sti");
@@ -146,7 +145,7 @@ void kernel_main(unsigned long magic, unsigned long addr) {
                     input_pos = 0;
                     memset(input_line, 0, 256);
                 }
-                serial_puts("ArgOS> ");
+                kprintf("ArgOS> ");
             } else if (c == '\b' || c == 127) {
                 if (input_pos > 0) {
                     input_pos--;
