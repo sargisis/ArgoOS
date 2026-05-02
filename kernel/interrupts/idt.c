@@ -140,23 +140,6 @@ void isr_handler(uint32_t int_no, uint32_t err_code) {
     if (err_code != 0) {
         kprintf("Error Code: 0x%x\n", err_code);
     }
-    
-    vga_puts("\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    
-    // Для некоторых исключений можно попытаться продолжить работу
-    // Для других - лучше остановить систему
-    if (int_no == 14) { // Page Fault
-        uint32_t fault_addr;
-        asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
-        vga_puts("Page Fault Address: 0x");
-        vga_puthex(fault_addr);
-        vga_puts("\n");
-    }
-    
-    // В реальной ОС здесь можно попытаться обработать исключение
-    // Пока просто останавливаемся
-    // asm volatile("cli; hlt");
 }
 
 // Внешние обработчики устройств

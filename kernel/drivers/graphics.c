@@ -41,21 +41,16 @@ static uint32_t pci_config_read(uint8_t bus, uint8_t device, uint8_t func, uint8
     return pci_inl(0xCFC);
 }
 
-// Scan PCI bus for Bochs VGA (vendor 0x1234, device 0x1111) and return BAR0
 static uint32_t find_bga_framebuffer(void) {
     for (uint8_t bus = 0; bus < 8; bus++) {
         for (uint8_t dev = 0; dev < 32; dev++) {
             uint32_t id = pci_config_read(bus, dev, 0, 0);
             uint16_t vendor = id & 0xFFFF;
             uint16_t device = (id >> 16) & 0xFFFF;
-            
-            // Bochs VGA: vendor=0x1234, device=0x1111
             if (vendor == 0x1234 && device == 0x1111) {
                 uint32_t bar0 = pci_config_read(bus, dev, 0, 0x10);
-                bar0 &= ~0xFu; // Clear lower 4 bits (flags)
-                serial_puts("Found Bochs VGA at PCI ");
-                serial_puts("BAR0=0x");
-                // Print hex
+                bar0 &= ~0xFu;
+                serial_puts("Found Bochs VGA BAR0=0x");
                 for (int i = 28; i >= 0; i -= 4) {
                     int nibble = (bar0 >> i) & 0xF;
                     serial_putchar(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
@@ -65,7 +60,6 @@ static uint32_t find_bga_framebuffer(void) {
             }
         }
     }
-    serial_puts("WARNING: Bochs VGA not found on PCI, using fallback 0xE0000000\n");
     return 0xE0000000;
 }
 
@@ -87,39 +81,57 @@ static void bga_set_mode(int w, int h, int bpp) {
 }
 
 void graphics_init(struct multiboot_info* mb_info) {
-    (void)mb_info;
-
-    // Check if BGA is available
-    asm volatile("outw %0, %1" :: "a"((uint16_t)BGA_INDEX_ID), "Nd"((uint16_t)BGA_INDEX_PORT));
-    uint16_t id;
-    asm volatile("inw %1, %0" : "=a"(id) : "Nd"((uint16_t)BGA_DATA_PORT));
-
-    if (id < 0xB0C0 || id > 0xB0C5) {
-        serial_puts("ERROR: Bochs VGA not detected!\n");
+    if (!mb_info) {
+        serial_puts("ERROR: No Multiboot info provided to graphics_init\n");
         return;
     }
 
-    screen_width = 800;
-    screen_height = 600;
-    screen_bpp = 32;
+    // Check if framebuffer info is available (bit 12 in flags)
+    if (!(mb_info->flags & (1 << 12))) {
+        serial_puts("ERROR: No framebuffer info in Multiboot structure\n");
+        // Fallback to BGA if multiboot fails
+        asm volatile("outw %0, %1" :: "a"((uint16_t)BGA_INDEX_ID), "Nd"((uint16_t)BGA_INDEX_PORT));
+        uint16_t id;
+        asm volatile("inw %1, %0" : "=a"(id) : "Nd"((uint16_t)BGA_DATA_PORT));
+        if (id < 0xB0C0 || id > 0xB0C5) return;
+        
+        screen_width = 800;
+        screen_height = 600;
+        screen_bpp = 32;
+        bga_set_mode(screen_width, screen_height, screen_bpp);
+        framebuffer = (uint32_t*)find_bga_framebuffer();
+    } else {
+        // Use Multiboot framebuffer info
+        framebuffer = (uint32_t*)(uint32_t)mb_info->framebuffer_addr_low;
+        screen_width = mb_info->framebuffer_width;
+        screen_height = mb_info->framebuffer_height;
+        screen_bpp = mb_info->framebuffer_bpp;
+        serial_puts("Multiboot Graphics initialized: ");
+    }
 
-    // Set graphics mode
-    bga_set_mode(screen_width, screen_height, screen_bpp);
+    if (!framebuffer) {
+        serial_puts("ERROR: Framebuffer address is NULL\n");
+        return;
+    }
 
-    // Find REAL framebuffer address from PCI
-    uint32_t fb_addr = find_bga_framebuffer();
-
-    // Map the framebuffer into virtual memory (identity map)
-    uint32_t fb_size = (uint32_t)screen_width * (uint32_t)screen_height * 4;
+    // Map the framebuffer into virtual memory
+    uint32_t fb_size = (uint32_t)screen_width * (uint32_t)screen_height * (screen_bpp / 8);
     uint32_t num_pages = (fb_size + 0xFFF) / 0x1000;
+    
+    // We map the physical address to the same virtual address (Identity Mapping)
     for (uint32_t i = 0; i < num_pages; i++) {
-        uint32_t addr = fb_addr + (i * 0x1000);
+        uint32_t addr = (uint32_t)framebuffer + (i * 0x1000);
         paging_map_page(addr, addr, PAGE_PRESENT | PAGE_WRITABLE);
     }
 
-    framebuffer = (uint32_t*)fb_addr;
-
-    serial_puts("BGA Graphics initialized: 800x600x32\n");
+    // Output debug info to serial
+    serial_puts("FB=0x");
+    uint32_t fb_ptr = (uint32_t)framebuffer;
+    for (int i = 28; i >= 0; i -= 4) {
+        int nibble = (fb_ptr >> i) & 0xF;
+        serial_putchar(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
+    }
+    serial_puts("\n");
 }
 
 void graphics_put_pixel(int x, int y, uint32_t color) {
@@ -167,3 +179,23 @@ void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
 
 int graphics_get_width(void) { return screen_width; }
 int graphics_get_height(void) { return screen_height; }
+
+void graphics_draw_char(int x, int y, char c, uint32_t color) {
+    const uint8_t* glyph = font_get_glyph(c);
+    for (int row = 0; row < FONT_HEIGHT; row++) {
+        uint8_t bits = glyph[row];
+        for (int col = 0; col < FONT_WIDTH; col++) {
+            if (bits & (0x80 >> col)) {
+                graphics_put_pixel(x + col, y + row, color);
+            }
+        }
+    }
+}
+
+void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
+    while (*str) {
+        graphics_draw_char(x, y, *str, color);
+        x += FONT_WIDTH;
+        str++;
+    }
+}
