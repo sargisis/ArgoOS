@@ -126,39 +126,28 @@ void idt_init(void) {
 
 // Обработчик исключений
 void isr_handler(uint32_t int_no, uint32_t err_code) {
-    vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-    vga_puts("\n!!! EXCEPTION !!!\n");
-    vga_puts("Exception #");
-    vga_putdec(int_no);
-    vga_puts(": ");
-    
     if (int_no < 32) {
-        vga_puts(exception_messages[int_no]);
-    } else {
-        vga_puts("Unknown Exception");
+        // Prepare detailed error message
+        char msg[128];
+        strcpy(msg, "CPU Exception: ");
+        strcat(msg, exception_messages[int_no]);
+        
+        if (int_no == 14) { // Page Fault
+            uint32_t fault_addr;
+            asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+            strcat(msg, " at 0x");
+            // Simple hex to string for panic msg
+            char hex[9];
+            for (int i = 0; i < 8; i++) {
+                int nibble = (fault_addr >> ((7 - i) * 4)) & 0xF;
+                hex[i] = (nibble < 10) ? ('0' + nibble) : ('A' + nibble - 10);
+            }
+            hex[8] = '\0';
+            strcat(msg, hex);
+        }
+        
+        PANIC(msg);
     }
-    
-    if (err_code != 0) {
-        vga_puts("\nError Code: 0x");
-        vga_puthex(err_code);
-    }
-    
-    vga_puts("\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    
-    // Для некоторых исключений можно попытаться продолжить работу
-    // Для других - лучше остановить систему
-    if (int_no == 14) { // Page Fault
-        uint32_t fault_addr;
-        asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
-        vga_puts("Page Fault Address: 0x");
-        vga_puthex(fault_addr);
-        vga_puts("\n");
-    }
-    
-    // В реальной ОС здесь можно попытаться обработать исключение
-    // Пока просто останавливаемся
-    // asm volatile("cli; hlt");
 }
 
 // Внешние обработчики устройств

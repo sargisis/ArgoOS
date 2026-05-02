@@ -1,9 +1,12 @@
-// FlowDay-OS Kernel
+// ArgOS Kernel
 // Основной файл ядра
 
 #include "kernel.h"
 #include "multiboot.h"
+#include "gdt.h"
+#include "panic.h"
 #include "vga.h"
+#include "graphics.h"
 #include "string.h"
 #include "pmm.h"
 #include "paging.h"
@@ -28,18 +31,16 @@ struct multiboot_info* mb_info = 0;
 void kernel_main(unsigned long magic, unsigned long addr) {
     // Проверка Multiboot magic number
     if (magic != MULTIBOOT_BOOTLOADER_MAGIC) {
-        // Если не Multiboot, выводим ошибку
-        vga_clear();
-        vga_puts("ERROR: Invalid Multiboot magic number: 0x");
-        vga_puthex(magic);
-        vga_puts("\n");
-        return;
+        PANIC("Invalid Multiboot magic number");
     }
     
     // Сохраняем указатель на multiboot info
     mb_info = (struct multiboot_info*)addr;
     
-    // Инициализация VGA
+    // Инициализация базовых структур CPU
+    gdt_init();
+    
+    // Инициализация VGA (остается для совместимости)
     vga_init();
     vga_clear();
     
@@ -58,21 +59,22 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     vga_puts("Initializing device drivers...\n");
     serial_init();
     serial_puts("Serial port initialized (COM1)\n");
-    serial_puts("Initializing device drivers...\n");
     timer_init(TIMER_FREQUENCY);
     serial_puts("Timer initialized\n");
     keyboard_init();
     serial_puts("Keyboard driver ready\n");
     
+    // Инициализация графики (ПОСЛЕ paging!)
+    graphics_init(mb_info);
+    serial_puts("Graphics initialized\n");
+    
     // Инициализация многозадачности
-    vga_puts("Initializing multitasking...\n");
     serial_puts("Initializing multitasking...\n");
     task_init();
     syscall_init();
     serial_puts("Multitasking ready\n");
     
     // Инициализация файловой системы
-    vga_puts("Initializing file system...\n");
     serial_puts("Initializing file system...\n");
     ata_init();
     serial_puts("ATA driver initialized\n");
@@ -81,86 +83,60 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     
     // Включаем прерывания
     asm volatile("sti");
-    vga_puts("Interrupts enabled.\n");
     serial_puts("Interrupts enabled\n");
     
-    // Приветственное сообщение
-    vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-    vga_puts("========================================\n");
-    vga_puts("    FlowDay-OS Kernel v0.1\n");
-    vga_puts("========================================\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("\n");
+    // Рисуем графический интерфейс (GUI)
+    int sw = graphics_get_width();
+    int sh = graphics_get_height();
     
-    vga_puts("Kernel initialized successfully!\n");
-    vga_puts("Multiboot magic: 0x");
-    vga_puthex(magic);
-    vga_puts("\n");
-    
-    // Вывод информации о памяти
-    if (mb_info->flags & 0x01) {
-        vga_puts("Physical Memory: ");
-        vga_putdec(mb_info->mem_lower);
-        vga_puts(" KB (lower), ");
-        vga_putdec(mb_info->mem_upper);
-        vga_puts(" KB (upper)\n");
-    }
-    
-    // Вывод информации о PMM
-    vga_puts("PMM: Total pages: ");
-    vga_putdec(pmm_get_total_pages());
-    vga_puts(", Free pages: ");
-    vga_putdec(pmm_get_free_pages());
-    vga_puts("\n");
-    
-    // Тест heap allocator
-    vga_puts("Testing heap allocator...\n");
-    void* ptr1 = kmalloc(256);
-    void* ptr2 = kmalloc(512);
-    void* ptr3 = kmalloc(1024);
-    
-    if (ptr1 && ptr2 && ptr3) {
-        vga_set_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-        vga_puts("Heap allocator: OK\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+    if (sw > 0 && sh > 0) {
+        // 1. Обои рабочего стола (Темный космос)
+        graphics_clear(COLOR_DARK_BG);
         
-        kfree(ptr2);
-        kfree(ptr1);
-        kfree(ptr3);
-        vga_puts("Heap deallocation: OK\n");
-    } else {
-        vga_set_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK);
-        vga_puts("Heap allocator: FAILED\n");
-        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+        // 2. Панель задач снизу (Taskbar)
+        graphics_draw_rect(0, sh - 40, sw, 40, 0x111111);
+        
+        // 3. Кнопка "Пуск" (ArgOS Logo)
+        graphics_draw_rect(10, sh - 35, 60, 30, COLOR_CYAN);
+        graphics_draw_string(18, sh - 30, "ArgOS", 0x000000);
+        
+        // Часы на панели задач
+        graphics_draw_string(sw - 60, sh - 28, "04:30", COLOR_WHITE);
+        
+        // 4. Главное окно по центру
+        int win_w = 400;
+        int win_h = 300;
+        int win_x = (sw - win_w) / 2;
+        int win_y = (sh - win_h) / 2;
+        
+        // Тень окна
+        graphics_draw_rect(win_x + 5, win_y + 5, win_w, win_h, 0x0A0A15);
+        // Фон окна
+        graphics_draw_rect(win_x, win_y, win_w, win_h, 0x222233);
+        // Заголовок окна
+        graphics_draw_rect(win_x, win_y, win_w, 25, 0x333355);
+        graphics_draw_string(win_x + 8, win_y + 5, "Welcome to ArgOS", COLOR_WHITE);
+        // Кнопка закрытия окна
+        graphics_draw_rect(win_x + win_w - 25, win_y + 5, 15, 15, COLOR_RED);
+        graphics_draw_string(win_x + win_w - 22, win_y + 5, "X", COLOR_WHITE);
+        
+        // Текст внутри окна
+        graphics_draw_string(win_x + 20, win_y + 50, "ArgOS Kernel v0.1", COLOR_CYAN);
+        graphics_draw_string(win_x + 20, win_y + 80, "Graphics: 800x600 32-bit", COLOR_GREEN);
+        graphics_draw_string(win_x + 20, win_y + 110, "Status: Running", COLOR_GREEN);
+        graphics_draw_string(win_x + 20, win_y + 150, "Your own Operating System!", 0xAAAAFF);
+        graphics_draw_string(win_x + 20, win_y + 180, "Built from scratch in C.", 0x888899);
+        
+        serial_puts("GUI rendered!\n");
     }
     
-    vga_puts("\n");
-    vga_set_color(VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK);
-    vga_puts("Welcome to FlowDay-OS!\n");
-    vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-    vga_puts("System is ready.\n");
-    vga_puts("\n");
+    // Телеметрия
+    serial_puts("\n[TELEMETRY] {\"system\": \"ArgOS\", \"status\": \"online\", \"version\": \"0.1\"}\n");
     
-    // Очистка буфера клавиатуры при старте
-    // Читаем все старые данные из буфера
-    for (int i = 0; i < 10; i++) {
-        uint8_t status;
-        asm volatile("inb %1, %0" : "=a"(status) : "Nd"(0x64));
-        if (status & 0x01) {
-            uint8_t dummy;
-            asm volatile("inb %1, %0" : "=a"(dummy) : "Nd"(0x60));
-            (void)dummy;
-        } else {
-            break;
-        }
-    }
-    
-    // Используем serial port для ввода/вывода
-    serial_puts("\n=== FlowDay-OS Shell (Serial) ===\n");
-    serial_puts("Using serial port for input/output.\n");
+    // Shell через serial port
+    serial_puts("\n=== ArgOS Shell (Serial) ===\n");
     serial_puts("Type commands here:\n\n");
     
-    // Инициализация shell
     shell_init();
     serial_puts("Shell initialized\n");
     
@@ -168,35 +144,30 @@ void kernel_main(unsigned long magic, unsigned long addr) {
     char input_line[256] = {0};
     int input_pos = 0;
     
-    serial_puts("FlowDay-OS> ");
+    serial_puts("ArgOS> ");
     
     while (1) {
         asm volatile("sti");
         
-        // Читаем из serial port
         if (serial_is_data_available()) {
             char c = serial_getchar();
             
             if (c == '\n' || c == '\r') {
-                // Enter - выполняем команду
                 serial_puts("\n");
                 if (input_pos > 0) {
                     input_line[input_pos] = '\0';
-                    // Выполняем команду через shell
                     shell_process_command(input_line);
                     input_pos = 0;
                     memset(input_line, 0, 256);
                 }
-                serial_puts("FlowDay-OS> ");
+                serial_puts("ArgOS> ");
             } else if (c == '\b' || c == 127) {
-                // Backspace
                 if (input_pos > 0) {
                     input_pos--;
                     input_line[input_pos] = '\0';
                     serial_puts("\b \b");
                 }
             } else if (c >= 32 && c < 127) {
-                // Печатаемый символ
                 if (input_pos < 255) {
                     input_line[input_pos++] = c;
                     serial_putchar(c);
@@ -204,7 +175,6 @@ void kernel_main(unsigned long magic, unsigned long addr) {
             }
         }
         
-        // Небольшая задержка
         asm volatile("pause");
     }
 }
