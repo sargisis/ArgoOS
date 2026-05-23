@@ -156,7 +156,8 @@ int elf_load(const char* path) {
         // In a real OS, we'd allocate a new user stack
         
         serial_puts("elf_load: Program loaded, entry point: 0x");
-        // Note: Need to implement serial_puthex or use existing function
+        serial_puthex(ehdr.e_entry);
+        serial_puts("\n");
     }
     
     return -1; // Should not reach here

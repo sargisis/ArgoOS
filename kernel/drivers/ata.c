@@ -157,7 +157,13 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
 }
 
 int ata_identify(void) {
-    // Wait for device to be ready (polling with timeout)
+    // Check if bus exists at all (if status is 0xFF or 0x00, no drive exists)
+    uint8_t status;
+    asm volatile("inb %w1, %0" : "=a"(status) : "Nd"(ATA_PRIMARY_STATUS));
+    if (status == 0xFF || status == 0x00) {
+        return -1;
+    }
+
     if (ata_wait_ready() != 0) {
         return -1;
     }
@@ -168,8 +174,7 @@ int ata_identify(void) {
     // Send identify command
     asm volatile("outb %0, %w1" :: "a"((uint8_t)ATA_CMD_IDENTIFY), "Nd"(ATA_PRIMARY_COMMAND));
     
-    // Quick check if bus exists at all (if status is 0, no drive exists)
-    uint8_t status;
+    // Quick check if drive exists
     asm volatile("inb %w1, %0" : "=a"(status) : "Nd"(ATA_PRIMARY_STATUS));
     if (status == 0) {
         return -1;
