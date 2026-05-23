@@ -179,23 +179,3 @@ void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
 
 int graphics_get_width(void) { return screen_width; }
 int graphics_get_height(void) { return screen_height; }
-
-void graphics_draw_char(int x, int y, char c, uint32_t color) {
-    const uint8_t* glyph = font_get_glyph(c);
-    for (int row = 0; row < FONT_HEIGHT; row++) {
-        uint8_t bits = glyph[row];
-        for (int col = 0; col < FONT_WIDTH; col++) {
-            if (bits & (0x80 >> col)) {
-                graphics_put_pixel(x + col, y + row, color);
-            }
-        }
-    }
-}
-
-void graphics_draw_string(int x, int y, const char* str, uint32_t color) {
-    while (*str) {
-        graphics_draw_char(x, y, *str, color);
-        x += FONT_WIDTH;
-        str++;
-    }
-}

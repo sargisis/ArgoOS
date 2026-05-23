@@ -157,13 +157,10 @@ int ata_write_sectors(uint32_t lba, uint8_t num_sectors, const void* buffer) {
 }
 
 int ata_identify(void) {
-    // Skip ATA identify for now - it can hang if no device
-    // In QEMU without disk, this will hang indefinitely
-    // TODO: Add timeout mechanism
-    return -1; // No device (for now, skip the check)
-    
-    /*
-    ata_wait_ready();
+    // Wait for device to be ready (polling with timeout)
+    if (ata_wait_ready() != 0) {
+        return -1;
+    }
     
     // Select master drive
     asm volatile("outb %0, %w1" :: "a"((uint8_t)0xA0), "Nd"(ATA_PRIMARY_DEVICE));
@@ -171,8 +168,17 @@ int ata_identify(void) {
     // Send identify command
     asm volatile("outb %0, %w1" :: "a"((uint8_t)ATA_CMD_IDENTIFY), "Nd"(ATA_PRIMARY_COMMAND));
     
-    // Wait for data
-    ata_wait_data();
+    // Quick check if bus exists at all (if status is 0, no drive exists)
+    uint8_t status;
+    asm volatile("inb %w1, %0" : "=a"(status) : "Nd"(ATA_PRIMARY_STATUS));
+    if (status == 0) {
+        return -1;
+    }
+
+    // Wait for data (polling with timeout)
+    if (ata_wait_data() != 0) {
+        return -1;
+    }
     
     // Read identify data (512 bytes)
     uint16_t identify_data[256];
@@ -186,5 +192,4 @@ int ata_identify(void) {
     }
     
     return 0; // Device found
-    */
 }
